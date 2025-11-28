@@ -1,0 +1,2 @@
+# Ignore all assets by default; commit only explicitly needed art
+assets/
