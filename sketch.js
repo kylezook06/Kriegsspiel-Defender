@@ -18,6 +18,7 @@ let imgCavalry;
 let imgCannon;
 let imgBoss;
 let imgSniper;
+let imgBattalion;
 let imgMap;
 let imgPowerupShield;
 let imgPowerupRapid;
@@ -33,6 +34,8 @@ let victoryRestartTimer = 0;
 let sniperPhaseActive = false;
 let sniperEndTime = 0;
 let sniperNextSpawn = 0;
+let cannonOnslaughtActive = false;
+let cannonOnslaughtNextSpawn = 0;
 
 // Background scroll
 let mapOffsetX = 0;
@@ -73,6 +76,7 @@ function preload() {
   loadOptionalImage(["assets/french_cannon.png"], (img) => (imgCannon = img));
   loadOptionalImage(["assets/french_commander_boss.png"], (img) => (imgBoss = img));
   loadOptionalImage(["assets/french_sniper.png"], (img) => (imgSniper = img));
+  loadOptionalImage(["assets/powerup_battalion.png"], (img) => (imgBattalion = img));
   // Try PNG first, then JPEG for the map because some references ship as .jpg
   loadOptionalImage(["assets/waterloo_map.png", "assets/waterloo_map.jpg"], (img) => (imgMap = img));
   loadOptionalImage(["assets/powerup_shield.png"], (img) => (imgPowerupShield = img));
@@ -88,6 +92,8 @@ function setup() {
   sequenceCycle = 0;
   bossSpawned = false;
   sniperPhaseActive = false;
+  cannonOnslaughtActive = false;
+  cannonOnslaughtNextSpawn = 0;
 }
 
 function draw() {
@@ -182,6 +188,18 @@ const wavePlan = [
 function handleSpawns(allowNormalEnemies = true) {
   if (!allowNormalEnemies || bossSpawned) return;
 
+  if (cannonOnslaughtActive) {
+    if (levelTimer >= cannonOnslaughtNextSpawn) {
+      const currentCannons = enemies.filter((e) => e.type === "CANNON").length;
+      const toAdd = max(0, 10 - currentCannons);
+      if (toAdd > 0) {
+        spawnCannonRush(toAdd);
+      }
+      cannonOnslaughtNextSpawn = levelTimer + 0.6;
+    }
+    return;
+  }
+
   if (sniperPhaseActive) {
     if (levelTimer >= sniperNextSpawn) {
       const edge = random(["TOP", "BOTTOM"]);
@@ -222,6 +240,16 @@ function spawnPlannedWave(step) {
   }
 }
 
+function spawnCannonRush(count) {
+  const spacing = 110;
+  const baseY = random(140, height - 140);
+  const clampedCount = min(count, 10);
+  for (let i = 0; i < clampedCount; i++) {
+    const y = baseY + (i - clampedCount / 2) * 55;
+    enemies.push(new Enemy(width + i * spacing, constrain(y, 100, height - 100), "CANNON"));
+  }
+}
+
 function advanceWave() {
   const step = wavePlan[waveIndex];
   nextWaveTime = levelTimer + (step?.spacing || 3);
@@ -234,11 +262,17 @@ function advanceWave() {
 }
 
 function maybeSpawnBoss() {
+  if (!cannonOnslaughtActive && !bossSpawned && levelTimer >= 170 && levelTimer < 180) {
+    cannonOnslaughtActive = true;
+    cannonOnslaughtNextSpawn = levelTimer;
+  }
+
   if (!bossSpawned && gameState === "playing" && levelTimer >= 180 && !sniperPhaseActive) {
     bossSpawned = true;
     gameState = "boss";
     boss = new Enemy(width - 180, height / 2, "BOSS");
     enemies.push(boss);
+    cannonOnslaughtActive = false;
   }
 }
 
@@ -267,11 +301,9 @@ function updateAndDrawAll() {
 
   player.update();
   handleAutoFire();
+  player.updateBuddies();
   player.draw();
-  if (player.buddy) {
-    player.buddy.update(player);
-    player.buddy.draw();
-  }
+  player.drawBuddies();
 
   // Bullets
   for (let i = bullets.length - 1; i >= 0; i--) {
@@ -293,6 +325,14 @@ function updateAndDrawAll() {
       shot.dead = true;
     }
 
+    for (let bi = player.buddies.length - 1; bi >= 0; bi--) {
+      const buddy = player.buddies[bi];
+      if (!shot.dead && shot.collidesWithRect(buddy.x, buddy.y, buddy.w, buddy.h)) {
+        player.removeBuddy(buddy);
+        shot.dead = true;
+      }
+    }
+
     if (shot.dead) {
       enemyProjectiles.splice(i, 1);
     }
@@ -306,6 +346,13 @@ function updateAndDrawAll() {
     if (cloud.collidesWithPlayer(player)) {
       player.takeHit();
       cloud.marked = true;
+    }
+    for (let bi = player.buddies.length - 1; bi >= 0; bi--) {
+      const buddy = player.buddies[bi];
+      if (!cloud.marked && cloud.collidesWithRect(buddy.x, buddy.y, buddy.w, buddy.h)) {
+        player.removeBuddy(buddy);
+        cloud.marked = true;
+      }
     }
     if (cloud.marked || cloud.life <= 0) {
       explosions.splice(i, 1);
@@ -425,7 +472,36 @@ class Player {
     this.rapidTimer = 0;
     this.shieldCollected = 0;
     this.rapidCollected = 0;
-    this.buddy = null;
+    this.buddies = [];
+    this.maxBuddies = 5;
+  }
+
+  addBuddy() {
+    if (this.buddies.length >= this.maxBuddies) return;
+    const buddy = new BattalionBuddy(this, this.buddies.length);
+    this.buddies.push(buddy);
+    this.refreshBuddyOffsets();
+  }
+
+  refreshBuddyOffsets() {
+    this.buddies.forEach((b, idx) => b.setIndex(idx));
+  }
+
+  removeBuddy(buddy) {
+    const idx = this.buddies.indexOf(buddy);
+    if (idx >= 0) {
+      this.buddies.splice(idx, 1);
+      this.refreshBuddyOffsets();
+    }
+  }
+
+  updateBuddies() {
+    this.buddies.forEach((b) => b.update(this));
+    this.buddies = this.buddies.filter((b) => !b.dead);
+  }
+
+  drawBuddies() {
+    this.buddies.forEach((b) => b.draw());
   }
 
   update() {
@@ -515,6 +591,9 @@ class Player {
       this.shield--;
     } else {
       this.hp--;
+      this.baseCooldown = 12;
+      this.rapidTimer = 0;
+      this.rapidCollected = 0;
     }
   }
 
@@ -557,12 +636,24 @@ class Bullet {
 }
 
 class BattalionBuddy {
-  constructor(player) {
+  constructor(player, index = 0) {
+    const size = sizeFromImage(imgBattalion, 30, 30);
+    this.w = size.w;
+    this.h = size.h;
     this.x = player.x - 30;
     this.y = player.y;
     this.fireCooldown = 0;
     this.fireRate = 30;
-    this.offset = { x: -50, y: 0 };
+    this.dead = false;
+    this.setIndex(index);
+  }
+
+  setIndex(index) {
+    this.index = index;
+    const column = floor(index / 2);
+    const row = index % 2;
+    const yOffset = row === 0 ? -30 : 30;
+    this.offset = { x: -60 - column * 28, y: yOffset };
   }
 
   update(player) {
@@ -598,14 +689,19 @@ class BattalionBuddy {
 
   draw() {
     push();
-    rectMode(CENTER);
-    noStroke();
-    fill(70, 90, 190);
-    rect(this.x, this.y, 28, 28, 4);
-    fill(230);
-    textAlign(CENTER, CENTER);
-    textSize(10);
-    text("Bn", this.x, this.y);
+    if (imgBattalion) {
+      imageMode(CENTER);
+      image(imgBattalion, this.x, this.y, this.w, this.h);
+    } else {
+      rectMode(CENTER);
+      noStroke();
+      fill(70, 90, 190);
+      rect(this.x, this.y, this.w, this.h, 4);
+      fill(230);
+      textAlign(CENTER, CENTER);
+      textSize(10);
+      text("Bn", this.x, this.y);
+    }
     pop();
   }
 }
@@ -656,9 +752,12 @@ class Enemy {
       const size = sizeFromImage(imgBoss, 280, 280);
       this.w = size.w;
       this.h = size.h;
-      this.hp = 40;
+      this.hp = 800;
       this.speed = 1.5;
       this.dirY = 1;
+      this.attackPhase = 0;
+      this.attackTimer = 0;
+      this.attackCooldown = 0;
     }
   }
 
@@ -691,6 +790,86 @@ class Enemy {
       this.y += this.dirY * this.speed;
       if (this.y < 120 || this.y > height - 120) {
         this.dirY *= -1;
+      }
+      this.updateBossAttacks();
+    }
+  }
+
+  updateBossAttacks() {
+    const phase = this.attackPhase % 3;
+    if (phase === 0) {
+      this.runDirectFire();
+    } else if (phase === 1) {
+      this.runSpreadFire();
+    } else {
+      this.runCannonBarrage();
+    }
+  }
+
+  advanceBossPhase(cooldownFrames = 45) {
+    this.attackPhase++;
+    this.attackCooldown = cooldownFrames;
+    this.phaseShotsLeft = 0;
+    this.spreadLaunched = false;
+    this.barrageQueued = false;
+  }
+
+  runDirectFire() {
+    if (!this.phaseShotsLeft) {
+      this.phaseShotsLeft = 8;
+    }
+
+    if (this.attackCooldown > 0) {
+      this.attackCooldown--;
+      return;
+    }
+
+    if (this.phaseShotsLeft > 0) {
+      enemyProjectiles.push(new BossDirectShot(this.x - this.w / 2, this.y, player));
+      this.phaseShotsLeft--;
+      this.attackCooldown = 12;
+    } else {
+      this.advanceBossPhase();
+    }
+  }
+
+  runSpreadFire() {
+    if (this.attackCooldown > 0) {
+      this.attackCooldown--;
+      return;
+    }
+
+    if (!this.spreadLaunched) {
+      const angles = [];
+      for (let a = -80; a <= 80; a += 16) angles.push(radians(a));
+      angles.forEach((ang) =>
+        enemyProjectiles.push(new BossSpreadShot(this.x - this.w / 2, this.y, ang))
+      );
+      this.spreadLaunched = true;
+      this.attackCooldown = 90;
+    } else if (this.attackCooldown <= 0) {
+      this.advanceBossPhase();
+    }
+  }
+
+  runCannonBarrage() {
+    if (!this.barrageQueued) {
+      const blasts = 6;
+      for (let i = 0; i < blasts; i++) {
+        const targetX = random(width * 0.15, width * 0.75);
+        const targetY = random(110, height - 110);
+        enemyProjectiles.push(new BossCannonStrike(targetX, targetY));
+      }
+      this.barrageQueued = true;
+      this.attackCooldown = 110;
+    }
+
+    if (this.attackCooldown > 0) {
+      this.attackCooldown--;
+    } else {
+      const pending = enemyProjectiles.some((p) => p instanceof BossCannonStrike);
+      if (!pending) {
+        this.advanceBossPhase();
       }
     }
   }
@@ -782,6 +961,10 @@ class CannonShot {
   collidesWithPlayer(player) {
     return rectCircleOverlap(player.x, player.y, player.w, player.h, this.x, this.y, this.r);
   }
+
+  collidesWithRect(x, y, w, h) {
+    return rectCircleOverlap(x, y, w, h, this.x, this.y, this.r);
+  }
 }
 
 class SniperShot {
@@ -817,6 +1000,121 @@ class SniperShot {
   collidesWithPlayer(player) {
     return rectCircleOverlap(player.x, player.y, player.w, player.h, this.x, this.y, this.r);
   }
+
+  collidesWithRect(x, y, w, h) {
+    return rectCircleOverlap(x, y, w, h, this.x, this.y, this.r);
+  }
+}
+
+class BossDirectShot {
+  constructor(x, y, target) {
+    this.x = x;
+    this.y = y;
+    const speed = 16;
+    const dx = target.x - x;
+    const dy = target.y - y;
+    const len = max(0.001, sqrt(dx * dx + dy * dy));
+    this.vx = (dx / len) * speed;
+    this.vy = (dy / len) * speed;
+    this.r = 7;
+    this.dead = false;
+  }
+
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    if (this.x < -60 || this.x > width + 60 || this.y < -60 || this.y > height + 60) {
+      this.dead = true;
+    }
+  }
+
+  draw() {
+    push();
+    noStroke();
+    fill(255, 100, 80);
+    circle(this.x, this.y, this.r * 2);
+    pop();
+  }
+
+  collidesWithPlayer(player) {
+    return rectCircleOverlap(player.x, player.y, player.w, player.h, this.x, this.y, this.r);
+  }
+
+  collidesWithRect(x, y, w, h) {
+    return rectCircleOverlap(x, y, w, h, this.x, this.y, this.r);
+  }
+}
+
+class BossSpreadShot {
+  constructor(x, y, angle) {
+    this.x = x;
+    this.y = y;
+    this.angle = angle;
+    this.speed = 3.5;
+    this.r = 6;
+    this.dead = false;
+  }
+
+  update() {
+    this.speed *= 1.02;
+    this.x += cos(this.angle) * this.speed;
+    this.y += sin(this.angle) * this.speed;
+    if (this.x < -80 || this.x > width + 80 || this.y < -80 || this.y > height + 80) {
+      this.dead = true;
+    }
+  }
+
+  draw() {
+    push();
+    noStroke();
+    fill(255, 170, 90);
+    circle(this.x, this.y, this.r * 2);
+    pop();
+  }
+
+  collidesWithPlayer(player) {
+    return rectCircleOverlap(player.x, player.y, player.w, player.h, this.x, this.y, this.r);
+  }
+
+  collidesWithRect(x, y, w, h) {
+    return rectCircleOverlap(x, y, w, h, this.x, this.y, this.r);
+  }
+}
+
+class BossCannonStrike {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.timer = 40;
+    this.dead = false;
+  }
+
+  update() {
+    this.timer--;
+    if (this.timer <= 0) {
+      explosions.push(new ExplosionCloud(this.x, this.y));
+      this.dead = true;
+    }
+  }
+
+  draw() {
+    push();
+    noFill();
+    stroke(255, 180, 80, 200);
+    strokeWeight(2);
+    circle(this.x, this.y, 28 + (40 - this.timer));
+    line(this.x - 10, this.y, this.x + 10, this.y);
+    line(this.x, this.y - 10, this.x, this.y + 10);
+    pop();
+  }
+
+  collidesWithPlayer() {
+    return false; // damage happens via the spawned explosion
+  }
+
+  collidesWithRect() {
+    return false;
+  }
 }
 
 class ExplosionCloud {
@@ -847,6 +1145,12 @@ class ExplosionCloud {
     const progress = 1 - this.life / 90;
     const radius = lerp(this.baseRadius, this.maxRadius, progress);
     return rectCircleOverlap(player.x, player.y, player.w, player.h, this.x, this.y, radius);
+  }
+
+  collidesWithRect(x, y, w, h) {
+    const progress = 1 - this.life / 90;
+    const radius = lerp(this.baseRadius, this.maxRadius, progress);
+    return rectCircleOverlap(x, y, w, h, this.x, this.y, radius);
   }
 }
 
@@ -901,8 +1205,9 @@ class Powerup {
     if (this.type === "SHIELD") {
       player.shield = 1;
       player.shieldCollected++;
-      if (player.shieldCollected >= 5 && !player.buddy) {
-        player.buddy = new BattalionBuddy(player);
+      const desiredBuddies = min(floor(player.shieldCollected / 5), player.maxBuddies);
+      while (player.buddies.length < desiredBuddies) {
+        player.addBuddy();
       }
     } else if (this.type === "RAPID") {
       player.baseCooldown = 4;
@@ -957,4 +1262,6 @@ function resetGame() {
   waveIndex = 0;
   sequenceCycle = 0;
   sniperPhaseActive = false;
+  cannonOnslaughtActive = false;
+  cannonOnslaughtNextSpawn = 0;
 }
