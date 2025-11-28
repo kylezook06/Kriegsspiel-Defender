@@ -11,6 +11,7 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
    - `assets/french_infantry.png`
    - `assets/french_cavalry.png`
    - `assets/french_cannon.png`
+   - `assets/french_sniper.png`
    - `assets/french_commander_boss.png`
    - `assets/waterloo_map.png` **or** `assets/waterloo_map.jpg`
    - `assets/powerup_shield.png`

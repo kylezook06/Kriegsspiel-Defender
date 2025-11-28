@@ -16,6 +16,7 @@ let imgInfantry;
 let imgCavalry;
 let imgCannon;
 let imgBoss;
+let imgSniper;
 let imgMap;
 let imgPowerupShield;
 let imgPowerupRapid;
@@ -71,6 +72,7 @@ function preload() {
   loadOptionalImage(["assets/french_cavalry.png"], (img) => (imgCavalry = img));
   loadOptionalImage(["assets/french_cannon.png"], (img) => (imgCannon = img));
   loadOptionalImage(["assets/french_commander_boss.png"], (img) => (imgBoss = img));
+  loadOptionalImage(["assets/french_sniper.png"], (img) => (imgSniper = img));
   // Try PNG first, then JPEG for the map because some references ship as .jpg
   loadOptionalImage(["assets/waterloo_map.png", "assets/waterloo_map.jpg"], (img) => (imgMap = img));
   loadOptionalImage(["assets/powerup_shield.png"], (img) => (imgPowerupShield = img));
@@ -572,8 +574,9 @@ class Enemy {
       this.speed = 2.2;
       this.fireTimer = int(random(90, 150));
     } else if (this.type === "SNIPER") {
-      this.w = 70;
-      this.h = 70;
+      const size = sizeFromImage(imgSniper, 70, 70);
+      this.w = size.w;
+      this.h = size.h;
       this.hp = 1;
       this.speed = 0;
     } else if (this.type === "BOSS") {
@@ -623,6 +626,8 @@ class Enemy {
       ? imgCavalry
       : this.type === "CANNON"
       ? imgCannon
+      : this.type === "SNIPER"
+      ? imgSniper
       : this.type === "BOSS"
       ? imgBoss
       : null;
