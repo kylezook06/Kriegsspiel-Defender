@@ -377,6 +377,7 @@ function updateAndDrawAll() {
         e.hp--;
         b.offscreen = true;
         if (e.hp <= 0) {
+          addKillScore(e.type);
           e.dead = true;
           maybeDropPowerup(e.x, e.y);
         }
@@ -411,7 +412,12 @@ function drawNarrowBars() {
 }
 
 function handleAutoFire() {
-  if ((gameState === "playing" || gameState === "boss") && keyIsDown(32)) {
+  if (gameState !== "playing" && gameState !== "boss") return;
+
+  const keyHeld = keyIsDown(32);
+  const mouseHeld = mouseIsPressed && mouseButton === LEFT;
+
+  if (keyHeld || mouseHeld) {
     player.shoot();
   }
 }
@@ -423,6 +429,14 @@ function maybeDropPowerup(x, y) {
     const type = random(["SHIELD", "RAPID"]);
     powerups.push(new Powerup(x, y, type));
   }
+}
+
+function addKillScore(type) {
+  if (type === "INFANTRY") score += 10;
+  else if (type === "CAVALRY") score += 20;
+  else if (type === "CANNON") score += 20;
+  else if (type === "SNIPER") score += 30;
+  else if (type === "BOSS") score += 1000;
 }
 
 // --- HUD / overlay ---
@@ -466,7 +480,7 @@ function drawStartScreen() {
   text("Kriegsspiel Defender", width / 2, height / 2 - 40);
   textSize(16);
   text(
-    "Press Space or Enter to deploy.\nWASD/Arrows to move, hold Space to fire.\nR to restart after defeat.",
+    "Press Space or Enter to deploy.\nMouse or WASD/Arrows to move, hold Space or Left Click to fire.\nR to restart after defeat.",
     width / 2,
     height / 2 + 20
   );
@@ -534,10 +548,24 @@ class Player {
       maxY = height - 120;
     }
 
+    // Keyboard control
     if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) this.x -= this.speed;
     if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) this.x += this.speed;
     if (keyIsDown(UP_ARROW) || keyIsDown(87)) this.y -= this.speed;
     if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) this.y += this.speed;
+
+    // Mouse control (mirrors position when inside the canvas during play)
+    const mouseUsable =
+      (gameState === "playing" || gameState === "boss") &&
+      mouseX >= 0 &&
+      mouseX <= width &&
+      mouseY >= 0 &&
+      mouseY <= height;
+
+    if (mouseUsable) {
+      this.x = mouseX;
+      this.y = mouseY;
+    }
 
     this.x = constrain(this.x, minX, maxX);
     this.y = constrain(this.y, minY, maxY);
@@ -1285,6 +1313,11 @@ function keyPressed() {
 function mousePressed() {
   if (gameState === "start") {
     beginPlayFromStart();
+    return;
+  }
+
+  if ((gameState === "playing" || gameState === "boss") && mouseButton === LEFT) {
+    player.shoot();
   }
 }
 
