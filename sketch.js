@@ -629,7 +629,10 @@ class Bullet {
   draw() {
     push();
     noStroke();
-    fill(255, 230, 0);
+    // Glow halo for visibility on darker maps
+    fill(255, 235, 120, 140);
+    circle(this.x, this.y, this.r * 3.2);
+    fill(25, 90, 25);
     circle(this.x, this.y, this.r * 2);
     pop();
   }
@@ -1010,12 +1013,23 @@ class BossDirectShot {
   constructor(x, y, target) {
     this.x = x;
     this.y = y;
-    const speed = 16;
+    const speed = 8;
     const dx = target.x - x;
     const dy = target.y - y;
     const len = max(0.001, sqrt(dx * dx + dy * dy));
-    this.vx = (dx / len) * speed;
-    this.vy = (dy / len) * speed;
+    const baseDirX = dx / len;
+    const baseDirY = dy / len;
+
+    // Reduce accuracy by blending perfect aim with random aim (50/50)
+    const randAngle = random(TWO_PI);
+    const randX = cos(randAngle);
+    const randY = sin(randAngle);
+    const mixedX = baseDirX * 0.5 + randX * 0.5;
+    const mixedY = baseDirY * 0.5 + randY * 0.5;
+    const mixLen = max(0.001, sqrt(mixedX * mixedX + mixedY * mixedY));
+
+    this.vx = (mixedX / mixLen) * speed;
+    this.vy = (mixedY / mixLen) * speed;
     this.r = 7;
     this.dead = false;
   }
