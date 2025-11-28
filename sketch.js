@@ -11,6 +11,7 @@ let explosions = [];
 let boss = null;
 let bossSpawned = false;
 let gameState = "playing"; // "playing" | "boss" | "victory" | "gameOver"
+let score = 0;
 let playerImg;
 let imgInfantry;
 let imgCavalry;
@@ -27,7 +28,6 @@ let tick = 0; // frame-ish counter
 let nextWaveTime = 1; // seconds
 let waveIndex = 0;
 let sequenceCycle = 0;
-let bossReady = false;
 let victoryRestartTimer = 0;
 
 let sniperPhaseActive = false;
@@ -86,7 +86,6 @@ function setup() {
   nextWaveTime = 1;
   waveIndex = 0;
   sequenceCycle = 0;
-  bossReady = false;
   bossSpawned = false;
   sniperPhaseActive = false;
 }
@@ -231,14 +230,11 @@ function advanceWave() {
   if (waveIndex >= wavePlan.length) {
     waveIndex = 0;
     sequenceCycle++;
-    if (sequenceCycle >= 2) {
-      bossReady = true;
-    }
   }
 }
 
 function maybeSpawnBoss() {
-  if (!bossSpawned && bossReady && !sniperPhaseActive && levelTimer >= nextWaveTime) {
+  if (!bossSpawned && gameState === "playing" && levelTimer >= 180 && !sniperPhaseActive) {
     bossSpawned = true;
     gameState = "boss";
     boss = new Enemy(width - 180, height / 2, "BOSS");
@@ -254,6 +250,8 @@ function startSniperPhase(step) {
 }
 
 function spawnSniper(edge) {
+  const existing = enemies.some((e) => e.type === "SNIPER" && e.edge === edge && !e.dead);
+  if (existing) return;
   const y = edge === "TOP" ? 60 : height - 60;
   const sniper = new Enemy(width + 50, y, "SNIPER");
   sniper.edge = edge;
@@ -270,6 +268,10 @@ function updateAndDrawAll() {
   player.update();
   handleAutoFire();
   player.draw();
+  if (player.buddy) {
+    player.buddy.update(player);
+    player.buddy.draw();
+  }
 
   // Bullets
   for (let i = bullets.length - 1; i >= 0; i--) {
@@ -388,7 +390,7 @@ function drawHUD() {
 
   textAlign(RIGHT, CENTER);
   text(
-    `HP: ${player.hp}  |  Power: ${player.powerLabel()}  |  Time: ${levelTimer.toFixed(1)}s`,
+    `HP: ${player.hp}  |  Power: ${player.powerLabel()}  |  Score: ${score}  |  Time: ${levelTimer.toFixed(1)}s`,
     width - 10,
     16
   );
@@ -421,6 +423,9 @@ class Player {
     this.narrowing = false;
     this.shield = 0;
     this.rapidTimer = 0;
+    this.shieldCollected = 0;
+    this.rapidCollected = 0;
+    this.buddy = null;
   }
 
   update() {
@@ -490,7 +495,17 @@ class Player {
   shoot() {
     if (this.fireCooldown === 0 && (gameState === "playing" || gameState === "boss")) {
       const bulletSpeed = 10;
-      bullets.push(new Bullet(this.x + this.w / 2, this.y, bulletSpeed));
+      const dirs = [{ x: 1, y: 0 }];
+
+      if (this.rapidCollected >= 5) {
+        dirs.push({ x: 1, y: -0.4 });
+        dirs.push({ x: 1, y: 0.4 });
+      }
+      if (this.rapidCollected >= 10) {
+        dirs.push({ x: -1, y: 0 });
+      }
+
+      dirs.forEach((d) => bullets.push(new Bullet(this.x + this.w / 2, this.y, d.x, d.y, bulletSpeed)));
       this.fireCooldown = this.baseCooldown;
     }
   }
@@ -514,17 +529,20 @@ class Player {
 // --- Bullet ---
 
 class Bullet {
-  constructor(x, y, speed) {
+  constructor(x, y, dx = 1, dy = 0, speed = 10) {
     this.x = x;
     this.y = y;
     this.r = 4;
-    this.speed = speed;
+    const len = max(0.001, sqrt(dx * dx + dy * dy));
+    this.vx = (dx / len) * speed;
+    this.vy = (dy / len) * speed;
     this.offscreen = false;
   }
 
   update() {
-    this.x += this.speed;
-    if (this.x > width + 20) {
+    this.x += this.vx;
+    this.y += this.vy;
+    if (this.x > width + 40 || this.x < -40 || this.y < -40 || this.y > height + 40) {
       this.offscreen = true;
     }
   }
@@ -534,6 +552,60 @@ class Bullet {
     noStroke();
     fill(255, 230, 0);
     circle(this.x, this.y, this.r * 2);
+    pop();
+  }
+}
+
+class BattalionBuddy {
+  constructor(player) {
+    this.x = player.x - 30;
+    this.y = player.y;
+    this.fireCooldown = 0;
+    this.fireRate = 30;
+    this.offset = { x: -50, y: 0 };
+  }
+
+  update(player) {
+    // Follow the player with a light easing
+    this.x = lerp(this.x, player.x + this.offset.x, 0.12);
+    this.y = lerp(this.y, player.y + this.offset.y, 0.12);
+
+    if (this.fireCooldown > 0) {
+      this.fireCooldown--;
+    }
+
+    if (gameState === "playing" || gameState === "boss") {
+      this.tryFire();
+    }
+  }
+
+  tryFire() {
+    if (this.fireCooldown > 0) return;
+    const dirs = [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+      { x: 1, y: 1 },
+      { x: 1, y: -1 },
+      { x: -1, y: 1 },
+      { x: -1, y: -1 },
+    ];
+    const choice = random(dirs);
+    bullets.push(new Bullet(this.x, this.y, choice.x, choice.y, 8));
+    this.fireCooldown = this.fireRate;
+  }
+
+  draw() {
+    push();
+    rectMode(CENTER);
+    noStroke();
+    fill(70, 90, 190);
+    rect(this.x, this.y, 28, 28, 4);
+    fill(230);
+    textAlign(CENTER, CENTER);
+    textSize(10);
+    text("Bn", this.x, this.y);
     pop();
   }
 }
@@ -579,6 +651,7 @@ class Enemy {
       this.h = size.h;
       this.hp = 1;
       this.speed = 0;
+      this.fireTimer = int(random(45, 75));
     } else if (this.type === "BOSS") {
       const size = sizeFromImage(imgBoss, 280, 280);
       this.w = size.w;
@@ -607,6 +680,11 @@ class Enemy {
     } else if (this.type === "SNIPER") {
       if (this.x > width - 80) {
         this.x -= 3;
+      }
+      this.fireTimer--;
+      if (this.fireTimer <= 0 && this.x <= width - 80) {
+        enemyProjectiles.push(new SniperShot(this.x - this.w / 2, this.y, player));
+        this.fireTimer = int(random(75, 120));
       }
     } else if (this.type === "BOSS") {
       this.x = max(this.x, width * 0.65);
@@ -706,6 +784,41 @@ class CannonShot {
   }
 }
 
+class SniperShot {
+  constructor(x, y, target) {
+    this.x = x;
+    this.y = y;
+    this.speed = 8;
+    const dx = target.x - x;
+    const dy = target.y - y;
+    const len = max(0.001, sqrt(dx * dx + dy * dy));
+    this.vx = (dx / len) * this.speed;
+    this.vy = (dy / len) * this.speed;
+    this.r = 6;
+    this.dead = false;
+  }
+
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    if (this.x < -40 || this.x > width + 40 || this.y < -40 || this.y > height + 40) {
+      this.dead = true;
+    }
+  }
+
+  draw() {
+    push();
+    noStroke();
+    fill(200, 60, 60);
+    circle(this.x, this.y, this.r * 2);
+    pop();
+  }
+
+  collidesWithPlayer(player) {
+    return rectCircleOverlap(player.x, player.y, player.w, player.h, this.x, this.y, this.r);
+  }
+}
+
 class ExplosionCloud {
   constructor(x, y) {
     this.x = x;
@@ -758,6 +871,12 @@ class Powerup {
     rectMode(CENTER);
     noStroke();
 
+    // Glow halo
+    const glowColor = this.type === "SHIELD" ? color(120, 210, 255, 130) : color(255, 210, 120, 130);
+    noStroke();
+    fill(glowColor);
+    circle(this.x, this.y, max(this.w, this.h) + 18);
+
     const img = this.type === "SHIELD" ? imgPowerupShield : imgPowerupRapid;
     if (img) {
       imageMode(CENTER);
@@ -781,10 +900,16 @@ class Powerup {
   applyTo(player) {
     if (this.type === "SHIELD") {
       player.shield = 1;
+      player.shieldCollected++;
+      if (player.shieldCollected >= 5 && !player.buddy) {
+        player.buddy = new BattalionBuddy(player);
+      }
     } else if (this.type === "RAPID") {
       player.baseCooldown = 4;
       player.rapidTimer = 60 * 6; // ~6 seconds at 60fps
+      player.rapidCollected++;
     }
+    score += 10;
   }
 }
 
@@ -825,7 +950,7 @@ function resetGame() {
   gameState = "playing";
   boss = null;
   bossSpawned = false;
-  bossReady = false;
+  score = 0;
   levelTimer = 0;
   tick = 0;
   nextWaveTime = 1;

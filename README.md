@@ -5,8 +5,9 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
 ## Quick start
 
 1. Open `index.html` in a browser or drop `index.html` + `sketch.js` into the p5 web editor.
-2. Controls: move with **WASD** or **arrow keys**, hold **Space** to auto-fire, restart with **R** after defeat (boss clears auto-restart the loop).
-3. Drop your own art into a local `assets/` folder (create it if it doesn’t exist—this repo ignores `assets/` entirely). The sketch will auto-load these filenames if present (PNG or, for the map, PNG/JPG) and otherwise fall back to the placeholder shapes:
+2. Controls: move with **WASD** or **arrow keys**, hold **Space** to auto-fire (multi-shot upgrades fire extra angles automatically), restart with **R** after defeat (boss clears auto-restart the loop).
+3. Scoring & power-ups: every collected power-up adds **+10 score**. Picking up **5 shields** spawns a friendly battalion that trails you and fires randomly in all eight compass directions. Collect **5 rapid-fire** tokens to fire east + northeast + southeast; collect **10** rapid-fire tokens to add a rear shot.
+4. Drop your own art into a local `assets/` folder (create it if it doesn’t exist—this repo ignores `assets/` entirely). The sketch will auto-load these filenames if present (PNG or, for the map, PNG/JPG) and otherwise fall back to the placeholder shapes:
    - `assets/player_block.png`
    - `assets/french_infantry.png`
    - `assets/french_cavalry.png`
@@ -20,15 +21,15 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
 ## File overview
 
 - `index.html` – Loads p5.js 1.11.x from a CDN, styles the page, and wires in the sketch.
-- `sketch.js` – Contains the Level 1 skeleton: scrolling map background, structured wave sequencing (intro infantry → cavalry zig-zag → cannons with blast clouds → sniper squeeze), power-ups, boss fight, HUD, and reset flow.
+- `sketch.js` – Contains the Level 1 skeleton: scrolling map background, structured wave sequencing (intro infantry → cavalry zig-zag → cannons with blast clouds → sniper squeeze), power-ups with score boosts and upgrade thresholds, boss fight, HUD, and reset flow.
 
 ## Level 1 flow at a glance
 
 - Starts small: single infantry waves (1–2) then a tighter five-infantry formation.
 - Cavalry arrive in fast zig-zags (only 1–2 at a time), then infantry return in formations capped at six.
 - Cannons join with slow shells that burst into lingering smoke clouds.
-- A narrowing sniper channel fires from top and bottom edges.
-- The sequence loops with small variations, then a boss enters; when the boss falls, the level automatically restarts.
+- A narrowing sniper channel fires from top and bottom edges (snipers don’t stack on the same edge).
+- The sequence loops with small variations, then a boss enters at the **3-minute mark**; when the boss falls, the level automatically restarts.
 
 ## Customization ideas
 
