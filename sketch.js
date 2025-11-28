@@ -20,6 +20,7 @@ let imgBoss;
 let imgSniper;
 let imgBattalion;
 let imgMap;
+let imgHedge;
 let imgPowerupShield;
 let imgPowerupRapid;
 
@@ -80,6 +81,7 @@ function preload() {
   loadOptionalImage(["assets/powerup_battalion.png"], (img) => (imgBattalion = img));
   // Try PNG first, then JPEG for the map because some references ship as .jpg
   loadOptionalImage(["assets/waterloo_map.png", "assets/waterloo_map.jpg"], (img) => (imgMap = img));
+  loadOptionalImage(["assets/hedgerow.png"], (img) => (imgHedge = img));
   loadOptionalImage(["assets/powerup_shield.png"], (img) => (imgPowerupShield = img));
   loadOptionalImage(["assets/powerup_rapid.png"], (img) => (imgPowerupRapid = img));
 }
@@ -405,10 +407,29 @@ function updateAndDrawAll() {
 
 function drawNarrowBars() {
   const barHeight = 100;
-  noStroke();
-  fill(0, 160);
-  rect(0, 0, width, barHeight);
-  rect(0, height - barHeight, width, barHeight);
+  if (imgHedge) {
+    imageMode(CORNER);
+
+    const scale = barHeight / imgHedge.height;
+    const tileW = imgHedge.width * scale;
+
+    for (let x = 0; x < width + tileW; x += tileW) {
+      image(imgHedge, x, 0, tileW, barHeight);
+    }
+
+    for (let x = 0; x < width + tileW; x += tileW) {
+      push();
+      translate(x, height);
+      scale(scale, -scale);
+      image(imgHedge, 0, 0, imgHedge.width, imgHedge.height);
+      pop();
+    }
+  } else {
+    noStroke();
+    fill(0, 160);
+    rect(0, 0, width, barHeight);
+    rect(0, height - barHeight, width, barHeight);
+  }
 }
 
 function handleAutoFire() {
