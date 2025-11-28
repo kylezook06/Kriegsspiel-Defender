@@ -23,6 +23,7 @@ let imgMap;
 let imgHedge;
 let imgPowerupShield;
 let imgPowerupRapid;
+let bgMusic;
 
 // Timing
 let levelTimer = 0; // seconds
@@ -64,6 +65,26 @@ function loadOptionalImage(paths, setter) {
   tryNext();
 }
 
+function loadOptionalSound(paths, setter) {
+  let idx = 0;
+  const tryNext = () => {
+    if (idx >= paths.length) {
+      setter(null);
+      return;
+    }
+    const path = paths[idx] + CACHE_BUSTER;
+    loadSound(
+      path,
+      (snd) => setter(snd),
+      () => {
+        idx++;
+        tryNext();
+      }
+    );
+  };
+  tryNext();
+}
+
 function sizeFromImage(img, fallbackW, fallbackH = fallbackW) {
   if (!img) return { w: fallbackW, h: fallbackH };
   const ratio = img.height / img.width;
@@ -84,6 +105,7 @@ function preload() {
   loadOptionalImage(["assets/hedgerow.png"], (img) => (imgHedge = img));
   loadOptionalImage(["assets/powerup_shield.png"], (img) => (imgPowerupShield = img));
   loadOptionalImage(["assets/powerup_rapid.png"], (img) => (imgPowerupRapid = img));
+  loadOptionalSound(["assets/BG_Music_Lvl_1.wav"], (snd) => (bgMusic = snd));
 }
 
 function setup() {
@@ -131,6 +153,18 @@ function draw() {
   }
 
   drawHUD();
+}
+
+function startBackgroundMusic() {
+  if (!bgMusic) return;
+  const ctx = getAudioContext();
+  if (ctx.state !== "running") {
+    ctx.resume();
+  }
+  if (!bgMusic.isPlaying()) {
+    bgMusic.setLoop(true);
+    bgMusic.play();
+  }
 }
 
 // --- Map scrolling ---
@@ -418,11 +452,7 @@ function drawNarrowBars() {
     }
 
     for (let x = 0; x < width + tileW; x += tileW) {
-      push();
-      translate(x, height);
-      scale(hedgeScale, -hedgeScale);
-      image(imgHedge, 0, 0, imgHedge.width, imgHedge.height);
-      pop();
+      image(imgHedge, x, height - barHeight, tileW, barHeight);
     }
   } else {
     noStroke();
@@ -828,6 +858,7 @@ class Enemy {
       this.attackPhase = 0;
       this.attackTimer = 0;
       this.attackCooldown = 0;
+      this.dropTimer = int(random(480, 720));
     }
   }
 
@@ -862,7 +893,23 @@ class Enemy {
         this.dirY *= -1;
       }
       this.updateBossAttacks();
+      this.maybeDropBossPowerup();
     }
+  }
+
+  maybeDropBossPowerup() {
+    if (!boss || boss.hp <= 0) return;
+    if (this.dropTimer > 0) {
+      this.dropTimer--;
+      return;
+    }
+
+    if (random() < 0.45) {
+      const type = random(["SHIELD", "RAPID"]);
+      powerups.push(new Powerup(this.x - this.w / 2, this.y, type));
+    }
+
+    this.dropTimer = int(random(600, 900));
   }
 
   updateBossAttacks() {
@@ -1353,6 +1400,7 @@ function beginPlayFromStart() {
   sniperPhaseActive = false;
   cannonOnslaughtActive = false;
   cannonOnslaughtNextSpawn = 0;
+  startBackgroundMusic();
 }
 
 function resetGame(pauseAtStart = false) {
@@ -1375,4 +1423,7 @@ function resetGame(pauseAtStart = false) {
   cannonOnslaughtActive = false;
   cannonOnslaughtNextSpawn = 0;
   victoryRestartTimer = 0;
+  if (!pauseAtStart) {
+    startBackgroundMusic();
+  }
 }
