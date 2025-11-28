@@ -410,8 +410,8 @@ function drawNarrowBars() {
   if (imgHedge) {
     imageMode(CORNER);
 
-    const scale = barHeight / imgHedge.height;
-    const tileW = imgHedge.width * scale;
+    const hedgeScale = barHeight / imgHedge.height;
+    const tileW = imgHedge.width * hedgeScale;
 
     for (let x = 0; x < width + tileW; x += tileW) {
       image(imgHedge, x, 0, tileW, barHeight);
@@ -420,7 +420,7 @@ function drawNarrowBars() {
     for (let x = 0; x < width + tileW; x += tileW) {
       push();
       translate(x, height);
-      scale(scale, -scale);
+      scale(hedgeScale, -hedgeScale);
       image(imgHedge, 0, 0, imgHedge.width, imgHedge.height);
       pop();
     }
