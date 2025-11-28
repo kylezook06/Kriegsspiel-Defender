@@ -10,6 +10,13 @@ let boss = null;
 let bossSpawned = false;
 let gameState = "playing"; // "playing" | "boss" | "victory" | "gameOver"
 let playerImg;
+let imgInfantry;
+let imgCavalry;
+let imgCannon;
+let imgBoss;
+let imgMap;
+let imgPowerupShield;
+let imgPowerupRapid;
 
 // Timing
 let levelTimer = 0; // seconds
@@ -21,25 +28,43 @@ let mapOffsetX = 0;
 const SCROLL_SPEED = 2;
 const PLAYER_IMG_SCALE = 0.15; // scales the imported PNG down to gameplay size
 
-function preload() {
-  // Optional: drop a local assets/player_block.png; fallback uses the rectangle sprite.
-  loadImage(
-    "assets/player_block.png",
-    (img) => {
-      playerImg = img;
-    },
-    () => {
-      playerImg = null;
+function loadOptionalImage(paths, setter) {
+  let idx = 0;
+  const tryNext = () => {
+    if (idx >= paths.length) {
+      setter(null);
+      return;
     }
-  );
-  // Uncomment and add your own PNGs for the remaining art:
-  // imgInfantry = loadImage("assets/french_infantry.png");
-  // imgCavalry = loadImage("assets/french_cavalry.png");
-  // imgCannon = loadImage("assets/french_cannon.png");
-  // imgBoss = loadImage("assets/french_commander_boss.png");
-  // imgMap = loadImage("assets/waterloo_map.png");
-  // imgPowerupShield = loadImage("assets/powerup_shield.png");
-  // imgPowerupRapid = loadImage("assets/powerup_rapid.png");
+    const path = paths[idx];
+    loadImage(
+      path,
+      (img) => setter(img),
+      () => {
+        idx++;
+        tryNext();
+      }
+    );
+  };
+  tryNext();
+}
+
+function sizeFromImage(img, fallbackW, fallbackH = fallbackW) {
+  if (!img) return { w: fallbackW, h: fallbackH };
+  const ratio = img.height / img.width;
+  return { w: fallbackW, h: fallbackW * ratio };
+}
+
+function preload() {
+  // Optional: drop art into /assets locally. Files stay untracked because the folder is gitignored.
+  loadOptionalImage(["assets/player_block.png"], (img) => (playerImg = img));
+  loadOptionalImage(["assets/french_infantry.png"], (img) => (imgInfantry = img));
+  loadOptionalImage(["assets/french_cavalry.png"], (img) => (imgCavalry = img));
+  loadOptionalImage(["assets/french_cannon.png"], (img) => (imgCannon = img));
+  loadOptionalImage(["assets/french_commander_boss.png"], (img) => (imgBoss = img));
+  // Try PNG first, then JPEG for the map because some references ship as .jpg
+  loadOptionalImage(["assets/waterloo_map.png", "assets/waterloo_map.jpg"], (img) => (imgMap = img));
+  loadOptionalImage(["assets/powerup_shield.png"], (img) => (imgPowerupShield = img));
+  loadOptionalImage(["assets/powerup_rapid.png"], (img) => (imgPowerupRapid = img));
 }
 
 function setup() {
@@ -82,33 +107,45 @@ function draw() {
 // --- Map scrolling ---
 
 function drawScrollingMap() {
-  push();
-  noStroke();
-  fill(200, 190, 150);
-  rect(0, 0, width, height);
+  if (imgMap) {
+    const mapScale = height / imgMap.height;
+    const tileW = imgMap.width * mapScale;
 
-  mapOffsetX -= SCROLL_SPEED;
-  if (mapOffsetX <= -120) {
-    mapOffsetX = 0;
-  }
+    mapOffsetX -= SCROLL_SPEED;
+    if (mapOffsetX <= -tileW) {
+      mapOffsetX += tileW;
+    }
 
-  // Vertical grid lines for a map feel
-  stroke(120, 100, 70);
-  strokeWeight(1);
-  for (let x = mapOffsetX; x < width + 120; x += 120) {
-    line(x, 0, x, height);
-  }
+    for (let x = mapOffsetX; x < width + tileW; x += tileW) {
+      image(imgMap, x, 0, tileW, height);
+    }
+  } else {
+    push();
+    noStroke();
+    fill(200, 190, 150);
+    rect(0, 0, width, height);
 
-  // Wavy "river" for motion
-  stroke(80, 120, 180);
-  noFill();
-  beginShape();
-  for (let x = 0; x <= width; x += 50) {
-    const y = height * 0.32 + 30 * sin((x + tick * 0.5) * 0.01);
-    vertex(x, y);
+    mapOffsetX -= SCROLL_SPEED;
+    if (mapOffsetX <= -120) {
+      mapOffsetX = 0;
+    }
+
+    stroke(120, 100, 70);
+    strokeWeight(1);
+    for (let x = mapOffsetX; x < width + 120; x += 120) {
+      line(x, 0, x, height);
+    }
+
+    stroke(80, 120, 180);
+    noFill();
+    beginShape();
+    for (let x = 0; x <= width; x += 50) {
+      const y = height * 0.32 + 30 * sin((x + tick * 0.5) * 0.01);
+      vertex(x, y);
+    }
+    endShape();
+    pop();
   }
-  endShape();
-  pop();
 }
 
 // --- Spawning logic ---
@@ -417,18 +454,21 @@ class Enemy {
 
   initStats() {
     if (this.type === "INFANTRY") {
-      this.w = 30;
-      this.h = 30;
+      const size = sizeFromImage(imgInfantry, 30, 30);
+      this.w = size.w;
+      this.h = size.h;
       this.hp = 1;
       this.speed = 3;
     } else if (this.type === "CAVALRY") {
-      this.w = 40;
-      this.h = 30;
+      const size = sizeFromImage(imgCavalry, 40, 30);
+      this.w = size.w;
+      this.h = size.h;
       this.hp = 2;
       this.speed = 4.5;
     } else if (this.type === "CANNON") {
-      this.w = 40;
-      this.h = 40;
+      const size = sizeFromImage(imgCannon, 40, 40);
+      this.w = size.w;
+      this.h = size.h;
       this.hp = 3;
       this.speed = 2;
     } else if (this.type === "SNIPER") {
@@ -437,8 +477,9 @@ class Enemy {
       this.hp = 1;
       this.speed = 0;
     } else if (this.type === "BOSS") {
-      this.w = 120;
-      this.h = 120;
+      const size = sizeFromImage(imgBoss, 140, 140);
+      this.w = size.w;
+      this.h = size.h;
       this.hp = 40;
       this.speed = 1.5;
       this.dirY = 1;
@@ -464,30 +505,45 @@ class Enemy {
 
   draw() {
     push();
-    rectMode(CENTER);
 
-    if (this.type === "INFANTRY") {
-      fill(30, 120, 40);
-    } else if (this.type === "CAVALRY") {
-      fill(120, 80, 40);
-    } else if (this.type === "CANNON") {
-      fill(80, 80, 80);
-    } else if (this.type === "SNIPER") {
-      fill(180, 40, 40);
-    } else if (this.type === "BOSS") {
-      fill(160, 40, 120);
+    const img = this.type === "INFANTRY"
+      ? imgInfantry
+      : this.type === "CAVALRY"
+      ? imgCavalry
+      : this.type === "CANNON"
+      ? imgCannon
+      : this.type === "BOSS"
+      ? imgBoss
+      : null;
+
+    if (img) {
+      imageMode(CENTER);
+      image(img, this.x, this.y, this.w, this.h);
+    } else {
+      rectMode(CENTER);
+      if (this.type === "INFANTRY") {
+        fill(30, 120, 40);
+      } else if (this.type === "CAVALRY") {
+        fill(120, 80, 40);
+      } else if (this.type === "CANNON") {
+        fill(80, 80, 80);
+      } else if (this.type === "SNIPER") {
+        fill(180, 40, 40);
+      } else if (this.type === "BOSS") {
+        fill(160, 40, 120);
+      }
+
+      rect(this.x, this.y, this.w, this.h, 4);
+
+      fill(255);
+      textAlign(CENTER, CENTER);
+      textSize(10);
+      if (this.type === "INFANTRY") text("INF", this.x, this.y);
+      if (this.type === "CAVALRY") text("CAV", this.x, this.y);
+      if (this.type === "CANNON") text("CAN", this.x, this.y);
+      if (this.type === "SNIPER") text("SNP", this.x, this.y);
+      if (this.type === "BOSS") text("MARSHAL", this.x, this.y);
     }
-
-    rect(this.x, this.y, this.w, this.h, 4);
-
-    fill(255);
-    textAlign(CENTER, CENTER);
-    textSize(10);
-    if (this.type === "INFANTRY") text("INF", this.x, this.y);
-    if (this.type === "CAVALRY") text("CAV", this.x, this.y);
-    if (this.type === "CANNON") text("CAN", this.x, this.y);
-    if (this.type === "SNIPER") text("SNP", this.x, this.y);
-    if (this.type === "BOSS") text("MARSHAL", this.x, this.y);
     pop();
   }
 
@@ -520,13 +576,20 @@ class Powerup {
     push();
     rectMode(CENTER);
     noStroke();
-    if (this.type === "SHIELD") fill(100, 200, 255);
-    else if (this.type === "RAPID") fill(255, 200, 80);
-    rect(this.x, this.y, this.w, this.h, 3);
-    fill(0);
-    textAlign(CENTER, CENTER);
-    textSize(10);
-    text(this.type === "SHIELD" ? "S" : "R", this.x, this.y);
+
+    const img = this.type === "SHIELD" ? imgPowerupShield : imgPowerupRapid;
+    if (img) {
+      imageMode(CENTER);
+      image(img, this.x, this.y, this.w, this.h);
+    } else {
+      if (this.type === "SHIELD") fill(100, 200, 255);
+      else if (this.type === "RAPID") fill(255, 200, 80);
+      rect(this.x, this.y, this.w, this.h, 3);
+      fill(0);
+      textAlign(CENTER, CENTER);
+      textSize(10);
+      text(this.type === "SHIELD" ? "S" : "R", this.x, this.y);
+    }
     pop();
   }
 

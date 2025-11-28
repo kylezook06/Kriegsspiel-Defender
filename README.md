@@ -6,7 +6,15 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
 
 1. Open `index.html` in a browser or drop `index.html` + `sketch.js` into the p5 web editor.
 2. Controls: move with **WASD** or **arrow keys**, fire with **Space**, restart with **R** after victory/defeat.
-3. Drop your own PNGs into a local `assets/` folder (create it if it doesn’t exist—this repo ignores `assets/` entirely). If `assets/player_block.png` exists, it will auto-load; otherwise the player falls back to the rectangle sprite. Extend `preload()` in `sketch.js` to swap in minis, bosses, and a map tile.
+3. Drop your own art into a local `assets/` folder (create it if it doesn’t exist—this repo ignores `assets/` entirely). The sketch will auto-load these filenames if present (PNG or, for the map, PNG/JPG) and otherwise fall back to the placeholder shapes:
+   - `assets/player_block.png`
+   - `assets/french_infantry.png`
+   - `assets/french_cavalry.png`
+   - `assets/french_cannon.png`
+   - `assets/french_commander_boss.png`
+   - `assets/waterloo_map.png` **or** `assets/waterloo_map.jpg`
+   - `assets/powerup_shield.png`
+   - `assets/powerup_rapid.png`
 
 ## File overview
 
