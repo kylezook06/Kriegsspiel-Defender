@@ -10,7 +10,7 @@ let enemyProjectiles = [];
 let explosions = [];
 let boss = null;
 let bossSpawned = false;
-let gameState = "playing"; // "playing" | "boss" | "victory" | "gameOver"
+let gameState = "start"; // "start" | "playing" | "boss" | "victory" | "gameOver"
 let score = 0;
 let playerImg;
 let imgInfantry;
@@ -41,6 +41,7 @@ let cannonOnslaughtNextSpawn = 0;
 let mapOffsetX = 0;
 const SCROLL_SPEED = 2;
 const PLAYER_IMG_SCALE = 0.15; // scales the imported PNG down to gameplay size
+const CACHE_BUSTER = `?cb=${Math.floor(Math.random() * 1_000_000_000)}`;
 
 function loadOptionalImage(paths, setter) {
   let idx = 0;
@@ -49,7 +50,7 @@ function loadOptionalImage(paths, setter) {
       setter(null);
       return;
     }
-    const path = paths[idx];
+    const path = paths[idx] + CACHE_BUSTER;
     loadImage(
       path,
       (img) => setter(img),
@@ -85,24 +86,24 @@ function preload() {
 
 function setup() {
   createCanvas(800, 600);
-  player = new Player();
   textFont("monospace");
-  nextWaveTime = 1;
-  waveIndex = 0;
-  sequenceCycle = 0;
-  bossSpawned = false;
-  sniperPhaseActive = false;
-  cannonOnslaughtActive = false;
-  cannonOnslaughtNextSpawn = 0;
+  resetGame(true);
 }
 
 function draw() {
   const dt = deltaTime / 1000; // seconds
-  levelTimer += dt;
-  tick++;
+  if (gameState !== "start") {
+    levelTimer += dt;
+    tick++;
+  }
 
   background(20);
   drawScrollingMap();
+
+  if (gameState === "start") {
+    drawStartScreen();
+    return;
+  }
 
   if (gameState === "playing") {
     handleSpawns(true);
@@ -410,7 +411,7 @@ function drawNarrowBars() {
 }
 
 function handleAutoFire() {
-  if (keyIsDown(32)) {
+  if ((gameState === "playing" || gameState === "boss") && keyIsDown(32)) {
     player.shoot();
   }
 }
@@ -452,6 +453,23 @@ function drawOverlay(message) {
   textAlign(CENTER, CENTER);
   textSize(28);
   text(message, width / 2, height / 2);
+  pop();
+}
+
+function drawStartScreen() {
+  push();
+  fill(0, 180);
+  rect(0, 0, width, height);
+  fill(255);
+  textAlign(CENTER, CENTER);
+  textSize(30);
+  text("Kriegsspiel Defender", width / 2, height / 2 - 40);
+  textSize(16);
+  text(
+    "Press Space or Enter to deploy.\nWASD/Arrows to move, hold Space to fire.\nR to restart after defeat.",
+    width / 2,
+    height / 2 + 20
+  );
   pop();
 }
 
@@ -830,7 +848,7 @@ class Enemy {
     if (this.phaseShotsLeft > 0) {
       enemyProjectiles.push(new BossDirectShot(this.x - this.w / 2, this.y, player));
       this.phaseShotsLeft--;
-      this.attackCooldown = 12;
+      this.attackCooldown = 24;
     } else {
       this.advanceBossPhase();
     }
@@ -1251,6 +1269,11 @@ function rectCircleOverlap(rx, ry, rw, rh, cx, cy, cr) {
 // --- Input ---
 
 function keyPressed() {
+  if (gameState === "start" && (key === " " || key === "Enter")) {
+    beginPlayFromStart();
+    return;
+  }
+
   if (key === " ") {
     player.shoot();
   }
@@ -1259,14 +1282,33 @@ function keyPressed() {
   }
 }
 
-function resetGame() {
+function mousePressed() {
+  if (gameState === "start") {
+    beginPlayFromStart();
+  }
+}
+
+function beginPlayFromStart() {
+  if (gameState !== "start") return;
+  gameState = "playing";
+  levelTimer = 0;
+  tick = 0;
+  nextWaveTime = 1;
+  waveIndex = 0;
+  sequenceCycle = 0;
+  sniperPhaseActive = false;
+  cannonOnslaughtActive = false;
+  cannonOnslaughtNextSpawn = 0;
+}
+
+function resetGame(pauseAtStart = false) {
   bullets = [];
   enemies = [];
   powerups = [];
   enemyProjectiles = [];
   explosions = [];
   player = new Player();
-  gameState = "playing";
+  gameState = pauseAtStart ? "start" : "playing";
   boss = null;
   bossSpawned = false;
   score = 0;
@@ -1278,4 +1320,5 @@ function resetGame() {
   sniperPhaseActive = false;
   cannonOnslaughtActive = false;
   cannonOnslaughtNextSpawn = 0;
+  victoryRestartTimer = 0;
 }
