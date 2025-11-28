@@ -5,7 +5,7 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
 ## Quick start
 
 1. Open `index.html` in a browser or drop `index.html` + `sketch.js` into the p5 web editor.
-2. Controls: move with **WASD** or **arrow keys**, fire with **Space**, restart with **R** after victory/defeat.
+2. Controls: move with **WASD** or **arrow keys**, hold **Space** to auto-fire, restart with **R** after defeat (boss clears auto-restart the loop).
 3. Drop your own art into a local `assets/` folder (create it if it doesn’t exist—this repo ignores `assets/` entirely). The sketch will auto-load these filenames if present (PNG or, for the map, PNG/JPG) and otherwise fall back to the placeholder shapes:
    - `assets/player_block.png`
    - `assets/french_infantry.png`
@@ -19,7 +19,15 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
 ## File overview
 
 - `index.html` – Loads p5.js 1.11.x from a CDN, styles the page, and wires in the sketch.
-- `sketch.js` – Contains the Level 1 skeleton: scrolling map background, enemy waves, sniper phase, power-ups, boss fight, HUD, and reset flow.
+- `sketch.js` – Contains the Level 1 skeleton: scrolling map background, structured wave sequencing (intro infantry → cavalry zig-zag → cannons with blast clouds → sniper squeeze), power-ups, boss fight, HUD, and reset flow.
+
+## Level 1 flow at a glance
+
+- Starts small: single infantry waves (1–2) then a tighter five-infantry formation.
+- Cavalry arrive in fast zig-zags (only 1–2 at a time), then infantry return in formations capped at six.
+- Cannons join with slow shells that burst into lingering smoke clouds.
+- A narrowing sniper channel fires from top and bottom edges.
+- The sequence loops with small variations, then a boss enters; when the boss falls, the level automatically restarts.
 
 ## Customization ideas
 

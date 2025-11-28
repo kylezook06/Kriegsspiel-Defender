@@ -6,6 +6,8 @@ let player;
 let bullets = [];
 let enemies = [];
 let powerups = [];
+let enemyProjectiles = [];
+let explosions = [];
 let boss = null;
 let bossSpawned = false;
 let gameState = "playing"; // "playing" | "boss" | "victory" | "gameOver"
@@ -21,7 +23,15 @@ let imgPowerupRapid;
 // Timing
 let levelTimer = 0; // seconds
 let tick = 0; // frame-ish counter
-let enemySpawnTimer = 0;
+let nextWaveTime = 1; // seconds
+let waveIndex = 0;
+let sequenceCycle = 0;
+let bossReady = false;
+let victoryRestartTimer = 0;
+
+let sniperPhaseActive = false;
+let sniperEndTime = 0;
+let sniperNextSpawn = 0;
 
 // Background scroll
 let mapOffsetX = 0;
@@ -71,7 +81,12 @@ function setup() {
   createCanvas(800, 600);
   player = new Player();
   textFont("monospace");
-  enemySpawnTimer = 60; // initial delay in frames
+  nextWaveTime = 1;
+  waveIndex = 0;
+  sequenceCycle = 0;
+  bossReady = false;
+  bossSpawned = false;
+  sniperPhaseActive = false;
 }
 
 function draw() {
@@ -85,17 +100,21 @@ function draw() {
   if (gameState === "playing") {
     handleSpawns(true);
     updateAndDrawAll();
-    maybeEnterSniperPhase();
     maybeSpawnBoss();
   } else if (gameState === "boss") {
     handleSpawns(false); // freeze regular waves
     updateAndDrawAll();
     if (boss && boss.hp <= 0) {
       gameState = "victory";
+      victoryRestartTimer = 3;
     }
   } else if (gameState === "victory") {
     updateAndDrawAll();
-    drawOverlay("VICTORY! Press R to restart");
+    victoryRestartTimer -= dt;
+    drawOverlay(`Boss defeated! Restarting... ${max(1, Math.ceil(victoryRestartTimer))}s`);
+    if (victoryRestartTimer <= 0) {
+      resetGame();
+    }
   } else if (gameState === "gameOver") {
     updateAndDrawAll();
     drawOverlay("GAME OVER - Press R to restart");
@@ -150,50 +169,90 @@ function drawScrollingMap() {
 
 // --- Spawning logic ---
 
-function handleSpawns(allowNormalEnemies = true) {
-  enemySpawnTimer--;
+const wavePlan = [
+  { type: "INFANTRY", min: 1, max: 2, spacing: 3 },
+  { type: "INFANTRY", count: 5, spacing: 3 },
+  { type: "CAVALRY", min: 1, max: 2, spacing: 3 },
+  { type: "INFANTRY", min: 3, max: 6, spacing: 3 },
+  { type: "CANNON", min: 1, max: 2, spacing: 4 },
+  { type: "SNIPER_PHASE", duration: 8, spacing: 4 },
+];
 
-  if (allowNormalEnemies && enemySpawnTimer <= 0 && !bossSpawned) {
-    spawnEnemyWave();
-    enemySpawnTimer = int(random(45, 80));
+function handleSpawns(allowNormalEnemies = true) {
+  if (!allowNormalEnemies || bossSpawned) return;
+
+  if (sniperPhaseActive) {
+    if (levelTimer >= sniperNextSpawn) {
+      const edge = random(["TOP", "BOTTOM"]);
+      spawnSniper(edge);
+      sniperNextSpawn = levelTimer + 0.75;
+    }
+
+    if (levelTimer >= sniperEndTime) {
+      sniperPhaseActive = false;
+      player.narrowing = false;
+      advanceWave();
+    }
+    return;
+  }
+
+  if (levelTimer >= nextWaveTime && wavePlan.length > 0) {
+    const step = wavePlan[waveIndex];
+    if (step.type === "SNIPER_PHASE") {
+      startSniperPhase(step);
+    } else {
+      spawnPlannedWave(step);
+      advanceWave();
+    }
   }
 }
 
-function spawnEnemyWave() {
-  const count = int(random(2, 5));
-  const baseY = random(100, height - 100);
+function spawnPlannedWave(step) {
+  const count = step.count
+    ? step.count + sequenceCycle
+    : int(random(step.min, step.max + 1 + sequenceCycle));
+  const cappedCount = step.type === "INFANTRY" ? min(count, 6) : min(count, 2);
+  const baseY = random(120, height - 120);
+  const spacing = step.type === "CAVALRY" ? 90 : step.type === "CANNON" ? 140 : 70;
 
-  for (let i = 0; i < count; i++) {
-    const type = random(["INFANTRY", "CAVALRY", "CANNON"]);
-    const y = baseY + (i - count / 2) * 40;
-    enemies.push(new Enemy(width + i * 40, constrain(y, 80, height - 80), type));
+  for (let i = 0; i < cappedCount; i++) {
+    const y = baseY + (i - cappedCount / 2) * 45;
+    enemies.push(new Enemy(width + i * spacing, constrain(y, 90, height - 90), step.type));
+  }
+}
+
+function advanceWave() {
+  const step = wavePlan[waveIndex];
+  nextWaveTime = levelTimer + (step?.spacing || 3);
+  waveIndex++;
+
+  if (waveIndex >= wavePlan.length) {
+    waveIndex = 0;
+    sequenceCycle++;
+    if (sequenceCycle >= 2) {
+      bossReady = true;
+    }
   }
 }
 
 function maybeSpawnBoss() {
-  if (!bossSpawned && levelTimer > 60) {
+  if (!bossSpawned && bossReady && !sniperPhaseActive && levelTimer >= nextWaveTime) {
     bossSpawned = true;
     gameState = "boss";
-    boss = new Enemy(width - 150, height / 2, "BOSS");
+    boss = new Enemy(width - 180, height / 2, "BOSS");
     enemies.push(boss);
   }
 }
 
-function maybeEnterSniperPhase() {
-  if (levelTimer > 20 && levelTimer < 30) {
-    player.narrowing = true;
-
-    if (tick % 45 === 0) {
-      const edge = random(["TOP", "BOTTOM"]);
-      spawnSniper(edge);
-    }
-  } else {
-    player.narrowing = false;
-  }
+function startSniperPhase(step) {
+  sniperPhaseActive = true;
+  player.narrowing = true;
+  sniperEndTime = levelTimer + step.duration + sequenceCycle * 1.5;
+  sniperNextSpawn = levelTimer + 0.25;
 }
 
 function spawnSniper(edge) {
-  const y = edge === "TOP" ? 40 : height - 40;
+  const y = edge === "TOP" ? 60 : height - 60;
   const sniper = new Enemy(width + 50, y, "SNIPER");
   sniper.edge = edge;
   enemies.push(sniper);
@@ -207,6 +266,7 @@ function updateAndDrawAll() {
   }
 
   player.update();
+  handleAutoFire();
   player.draw();
 
   // Bullets
@@ -215,6 +275,36 @@ function updateAndDrawAll() {
     bullets[i].draw();
     if (bullets[i].offscreen) {
       bullets.splice(i, 1);
+    }
+  }
+
+  // Enemy projectiles
+  for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
+    const shot = enemyProjectiles[i];
+    shot.update();
+    shot.draw();
+
+    if (shot.collidesWithPlayer(player)) {
+      player.takeHit();
+      shot.dead = true;
+    }
+
+    if (shot.dead) {
+      enemyProjectiles.splice(i, 1);
+    }
+  }
+
+  // Explosion hazards
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    const cloud = explosions[i];
+    cloud.update();
+    cloud.draw();
+    if (cloud.collidesWithPlayer(player)) {
+      player.takeHit();
+      cloud.marked = true;
+    }
+    if (cloud.marked || cloud.life <= 0) {
+      explosions.splice(i, 1);
     }
   }
 
@@ -266,6 +356,12 @@ function drawNarrowBars() {
   fill(0, 160);
   rect(0, 0, width, barHeight);
   rect(0, height - barHeight, width, barHeight);
+}
+
+function handleAutoFire() {
+  if (keyIsDown(32)) {
+    player.shoot();
+  }
 }
 
 // --- Power-up drop logic ---
@@ -454,30 +550,34 @@ class Enemy {
 
   initStats() {
     if (this.type === "INFANTRY") {
-      const size = sizeFromImage(imgInfantry, 30, 30);
+      const size = sizeFromImage(imgInfantry, 60, 60);
       this.w = size.w;
       this.h = size.h;
       this.hp = 1;
-      this.speed = 3;
+      this.speed = 3.2;
     } else if (this.type === "CAVALRY") {
-      const size = sizeFromImage(imgCavalry, 40, 30);
+      const size = sizeFromImage(imgCavalry, 80, 60);
       this.w = size.w;
       this.h = size.h;
       this.hp = 2;
-      this.speed = 4.5;
+      this.speed = 6.5;
+      this.zigzagAmp = 50;
+      this.zigzagFreq = 0.16;
+      this.phase = random(TWO_PI);
     } else if (this.type === "CANNON") {
-      const size = sizeFromImage(imgCannon, 40, 40);
+      const size = sizeFromImage(imgCannon, 80, 80);
       this.w = size.w;
       this.h = size.h;
       this.hp = 3;
-      this.speed = 2;
+      this.speed = 2.2;
+      this.fireTimer = int(random(90, 150));
     } else if (this.type === "SNIPER") {
-      this.w = 35;
-      this.h = 35;
+      this.w = 70;
+      this.h = 70;
       this.hp = 1;
       this.speed = 0;
     } else if (this.type === "BOSS") {
-      const size = sizeFromImage(imgBoss, 140, 140);
+      const size = sizeFromImage(imgBoss, 280, 280);
       this.w = size.w;
       this.h = size.h;
       this.hp = 40;
@@ -487,9 +587,20 @@ class Enemy {
   }
 
   update() {
-    if (this.type === "INFANTRY" || this.type === "CAVALRY" || this.type === "CANNON") {
+    if (this.type === "INFANTRY") {
       this.x -= this.speed;
-      this.y += sin(tick * 0.05 + this.x * 0.02);
+      this.y += sin(tick * 0.04 + this.x * 0.02);
+    } else if (this.type === "CAVALRY") {
+      this.x -= this.speed;
+      this.y += this.zigzagAmp * sin(tick * this.zigzagFreq + this.phase) * 0.6;
+    } else if (this.type === "CANNON") {
+      this.x -= this.speed;
+      this.y += sin(tick * 0.03 + this.x * 0.015);
+      this.fireTimer--;
+      if (this.fireTimer <= 0) {
+        enemyProjectiles.push(new CannonShot(this.x - this.w / 2, this.y));
+        this.fireTimer = int(random(110, 170));
+      }
     } else if (this.type === "SNIPER") {
       if (this.x > width - 80) {
         this.x -= 3;
@@ -553,6 +664,71 @@ class Enemy {
 
   collidesWithBullet(bullet) {
     return rectCircleOverlap(this.x, this.y, this.w, this.h, bullet.x, bullet.y, bullet.r);
+  }
+}
+
+// --- Cannon projectile & explosion ---
+
+class CannonShot {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.speed = 4;
+    this.r = 10;
+    this.timer = 75;
+    this.dead = false;
+  }
+
+  update() {
+    this.x -= this.speed;
+    this.timer--;
+    if (this.timer <= 0 || this.x < -40) {
+      explosions.push(new ExplosionCloud(this.x, this.y));
+      this.dead = true;
+    }
+  }
+
+  draw() {
+    push();
+    noStroke();
+    fill(230, 150, 80);
+    circle(this.x, this.y, this.r * 2);
+    pop();
+  }
+
+  collidesWithPlayer(player) {
+    return rectCircleOverlap(player.x, player.y, player.w, player.h, this.x, this.y, this.r);
+  }
+}
+
+class ExplosionCloud {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.baseRadius = 25;
+    this.maxRadius = 60;
+    this.life = 90;
+    this.marked = false;
+  }
+
+  update() {
+    this.life--;
+  }
+
+  draw() {
+    push();
+    noStroke();
+    const progress = 1 - this.life / 90;
+    const radius = lerp(this.baseRadius, this.maxRadius, progress);
+    fill(200, 200, 200, 180 - progress * 120);
+    circle(this.x, this.y, radius * 2);
+    pop();
+  }
+
+  collidesWithPlayer(player) {
+    const progress = 1 - this.life / 90;
+    const radius = lerp(this.baseRadius, this.maxRadius, progress);
+    return rectCircleOverlap(player.x, player.y, player.w, player.h, this.x, this.y, radius);
   }
 }
 
@@ -638,11 +814,17 @@ function resetGame() {
   bullets = [];
   enemies = [];
   powerups = [];
+  enemyProjectiles = [];
+  explosions = [];
   player = new Player();
   gameState = "playing";
   boss = null;
   bossSpawned = false;
+  bossReady = false;
   levelTimer = 0;
   tick = 0;
-  enemySpawnTimer = 60;
+  nextWaveTime = 1;
+  waveIndex = 0;
+  sequenceCycle = 0;
+  sniperPhaseActive = false;
 }
