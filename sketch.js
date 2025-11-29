@@ -699,7 +699,6 @@ class Player {
 
       dirs.forEach((d) => bullets.push(new Bullet(this.x + this.w / 2, this.y, d.x, d.y, bulletSpeed)));
       this.fireCooldown = this.baseCooldown;
-      playSound(sPlayerShot);
     }
   }
 
