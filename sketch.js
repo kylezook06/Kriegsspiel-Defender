@@ -33,6 +33,8 @@ let sPlayerShot;
 let sSniperShot;
 let sMedical;
 let sPlayerHit;
+let musicEnabled = true;
+let soundEnabled = true;
 
 // Timing
 let levelTimer = 0; // seconds
@@ -179,7 +181,7 @@ function draw() {
 }
 
 function startBackgroundMusic() {
-  if (!bgMusic) return;
+  if (!bgMusic || !musicEnabled || !soundEnabled) return;
   const ctx = getAudioContext();
   if (ctx.state !== "running") {
     ctx.resume();
@@ -191,12 +193,34 @@ function startBackgroundMusic() {
 }
 
 function playSound(snd) {
-  if (!snd) return;
+  if (!snd || !soundEnabled) return;
   const ctx = getAudioContext();
   if (ctx.state !== "running") {
     ctx.resume();
   }
   snd.play();
+}
+
+function toggleMusic() {
+  musicEnabled = !musicEnabled;
+  if (!musicEnabled || !soundEnabled) {
+    if (bgMusic && bgMusic.isPlaying()) {
+      bgMusic.stop();
+    }
+  } else if (gameState !== "start") {
+    startBackgroundMusic();
+  }
+}
+
+function toggleAllSound() {
+  soundEnabled = !soundEnabled;
+  if (!soundEnabled) {
+    if (bgMusic && bgMusic.isPlaying()) {
+      bgMusic.stop();
+    }
+  } else if (musicEnabled && gameState !== "start") {
+    startBackgroundMusic();
+  }
 }
 
 // --- Map scrolling ---
@@ -597,7 +621,7 @@ function drawStartScreen() {
   text("Kriegsspiel Defender", width / 2, height / 2 - 40);
   textSize(16);
   text(
-    "Press Space or Enter to deploy.\nMouse or WASD/Arrows to move, hold Space or Left Click to fire.\nR to restart after defeat.",
+    "Press Space or Enter to deploy.\nMouse or WASD/Arrows to move, hold Space or Left Click to fire.\nM toggles music, N toggles all audio. R to restart after defeat.",
     width / 2,
     height / 2 + 20
   );
@@ -1539,6 +1563,16 @@ function rectCircleOverlap(rx, ry, rw, rh, cx, cy, cr) {
 function keyPressed() {
   if (gameState === "start" && (key === " " || key === "Enter")) {
     beginPlayFromStart();
+    return;
+  }
+
+  if (key === "m" || key === "M") {
+    toggleMusic();
+    return;
+  }
+
+  if (key === "n" || key === "N") {
+    toggleAllSound();
     return;
   }
 
