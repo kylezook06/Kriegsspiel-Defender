@@ -60,6 +60,8 @@ let mapOffsetX = 0;
 const SCROLL_SPEED = 2;
 const PLAYER_IMG_SCALE = 0.15; // scales the imported PNG down to gameplay size
 const CACHE_BUSTER = `?cb=${Math.floor(Math.random() * 1_000_000_000)}`;
+const CLOSE_RANGE = () => width / 3;
+const MID_RANGE = () => (width * 2) / 3;
 
 function loadOptionalImage(paths, setter) {
   let idx = 0;
@@ -113,6 +115,14 @@ function sizeFromImage(img, fallbackW, fallbackH = fallbackW) {
   if (!img) return { w: fallbackW, h: fallbackH };
   const ratio = img.height / img.width;
   return { w: fallbackW, h: fallbackW * ratio };
+}
+
+function playerDamageMultiplier(enemy) {
+  if (!player || !enemy) return 1;
+  const d = dist(player.x, player.y, enemy.x, enemy.y);
+  if (d <= CLOSE_RANGE()) return 2;
+  if (d <= MID_RANGE()) return 1;
+  return 0.5;
 }
 
 function preload() {
@@ -557,7 +567,8 @@ function updateAndDrawAll(doUpdate = true) {
       for (let j = bullets.length - 1; j >= 0; j--) {
         const b = bullets[j];
         if (!e.dead && e.collidesWithBullet(b)) {
-          e.hp--;
+          const dmg = playerDamageMultiplier(e);
+          e.hp -= dmg;
           b.offscreen = true;
           if (e.hp <= 0) {
             addKillScore(e.type);
