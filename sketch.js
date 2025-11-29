@@ -568,7 +568,7 @@ class Player {
     this.speed = 5;
     this.hp = 3;
     this.fireCooldown = 0;
-    this.baseCooldown = 12;
+    this.baseCooldown = 24;
     this.narrowing = false;
     this.shield = 0;
     this.rapidTimer = 0;
@@ -647,7 +647,7 @@ class Player {
     if (this.rapidTimer > 0) {
       this.rapidTimer--;
       if (this.rapidTimer === 0) {
-        this.baseCooldown = 12;
+        this.baseCooldown = 24;
       }
     }
 
@@ -708,7 +708,7 @@ class Player {
       this.shield--;
     } else {
       this.hp--;
-      this.baseCooldown = 12;
+      this.baseCooldown = 24;
       this.rapidTimer = 0;
       this.rapidCollected = 0;
     }
@@ -1362,7 +1362,7 @@ class Powerup {
       }
       playSound(sShield);
     } else if (this.type === "RAPID") {
-      player.baseCooldown = 4;
+      player.baseCooldown = 8;
       player.rapidTimer = 60 * 6; // ~6 seconds at 60fps
       player.rapidCollected++;
       playSound(sRapid);
