@@ -16,7 +16,7 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
    - `assets/french_sniper.png`
    - `assets/french_sniper2.png` (or `assets/french_sniper_2.png` / `assets/sniper_2.png`) for the rear sniper
    - `assets/french_commander_boss.png`
-   - `assets/waterloo_map.png` **or** `assets/waterloo_map.jpg`
+  - `assets/waterloo_map.jpg`
    - `assets/hedgerow.png` (tiled cover during the sniper squeeze)
    - `assets/powerup_shield.png`
    - `assets/powerup_rapid.png`

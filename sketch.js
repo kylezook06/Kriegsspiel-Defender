@@ -119,8 +119,8 @@ function preload() {
     "assets/sniper_2.png",
   ], (img) => (imgSniperBack = img));
   loadOptionalImage(["assets/powerup_battalion.png"], (img) => (imgBattalion = img));
-  // Try PNG first, then JPEG for the map because some references ship as .jpg
-  loadOptionalImage(["assets/waterloo_map.png", "assets/waterloo_map.jpg"], (img) => (imgMap = img));
+  // Load the JPEG map (no PNG fallback needed in current setup)
+  loadOptionalImage(["assets/waterloo_map.jpg"], (img) => (imgMap = img));
   loadOptionalImage(["assets/hedgerow.png"], (img) => (imgHedge = img));
   loadOptionalImage(["assets/powerup_shield.png"], (img) => (imgPowerupShield = img));
   loadOptionalImage(["assets/powerup_rapid.png"], (img) => (imgPowerupRapid = img));
@@ -172,7 +172,7 @@ function draw() {
     updateAndDrawAll();
     victoryRestartTimer -= dt;
     drawOverlay(
-      `Boss defeated! Stage ${stage + 1} deploying in ${max(1, Math.ceil(victoryRestartTimer))}s`
+      `Boss defeated! Stage ${stage + 1} deploying in ${Math.max(1, Math.ceil(victoryRestartTimer))}s`
     );
     if (victoryRestartTimer <= 0) {
       resetGame(false, pendingAdvanceStage);
@@ -284,12 +284,12 @@ const wavePlan = [
 ];
 
 function fireRateFactor() {
-  return 1 + 0.1 * max(0, stage - 1);
+  return 1 + 0.1 * Math.max(0, stage - 1);
 }
 
 function scaledFireTimer(min, max) {
   const factor = fireRateFactor();
-  return max(8, int(random(min, max) / factor));
+  return Math.max(8, int(random(min, max) / factor));
 }
 
 function handleSpawns(allowNormalEnemies = true) {
@@ -298,7 +298,7 @@ function handleSpawns(allowNormalEnemies = true) {
   if (cannonOnslaughtActive) {
     if (levelTimer >= cannonOnslaughtNextSpawn) {
       const currentCannons = enemies.filter((e) => e.type === "CANNON").length;
-      const toAdd = max(0, 10 - currentCannons);
+      const toAdd = Math.max(0, 10 - currentCannons);
       if (toAdd > 0) {
         spawnCannonRush(toAdd);
       }
@@ -339,7 +339,7 @@ function spawnPlannedWave(step) {
     : int(random(step.min, step.max + 1 + sequenceCycle + (stage - 1)));
   const baseCap = step.type === "INFANTRY" ? 6 : 2;
   const cap = baseCap + (stage - 1);
-  const cappedCount = min(count, cap);
+  const cappedCount = Math.min(count, cap);
   const baseY = random(120, height - 120);
   const spacing = step.type === "CAVALRY" ? 90 : step.type === "CANNON" ? 140 : 70;
 
@@ -352,7 +352,7 @@ function spawnPlannedWave(step) {
 function spawnCannonRush(count) {
   const spacing = 110;
   const baseY = random(140, height - 140);
-  const clampedCount = min(count, 10);
+  const clampedCount = Math.min(count, 10);
   for (let i = 0; i < clampedCount; i++) {
     const y = baseY + (i - clampedCount / 2) * 55;
     enemies.push(new Enemy(width + i * spacing, constrain(y, 100, height - 100), "CANNON"));
@@ -495,7 +495,7 @@ function updateAndDrawAll() {
       if (e.type === "BOSS") {
         if (player.canBeHit()) {
           player.takeHit();
-          e.hp = max(0, e.hp - 10);
+          e.hp = Math.max(0, e.hp - 10);
         }
       } else {
         e.dead = true;
@@ -769,7 +769,7 @@ class Player {
 
     if (this.hitFlashTimer > 0) {
       const t = this.hitFlashTimer / 15;
-      const radius = max(this.w, this.h) * (1.1 + (1 - t) * 0.6);
+      const radius = Math.max(this.w, this.h) * (1.1 + (1 - t) * 0.6);
       const points = 12;
       noStroke();
       fill(220, 40, 40, 140 * t);
@@ -858,7 +858,7 @@ class Bullet {
     this.x = x;
     this.y = y;
     this.r = 4;
-    const len = max(0.001, sqrt(dx * dx + dy * dy));
+    const len = Math.max(0.001, sqrt(dx * dx + dy * dy));
     this.vx = (dx / len) * speed;
     this.vy = (dy / len) * speed;
     this.offscreen = false;
@@ -907,7 +907,7 @@ class BattalionBuddy {
       { x: 120, y: 0 },
     ];
 
-    const choice = presets[min(index, presets.length - 1)];
+    const choice = presets[Math.min(index, presets.length - 1)];
     this.offset = { x: choice.x, y: choice.y };
   }
 
@@ -1076,7 +1076,7 @@ class Enemy {
         }
       }
     } else if (this.type === "BOSS") {
-      this.x = max(this.x, width * 0.65);
+      this.x = Math.max(this.x, width * 0.65);
       this.y += this.dirY * this.speed;
       if (this.y < 120 || this.y > height - 120) {
         this.dirY *= -1;
@@ -1301,7 +1301,7 @@ class SniperShot {
     this.speed = 8;
     const dx = target.x - x;
     const dy = target.y - y;
-    const len = max(0.001, sqrt(dx * dx + dy * dy));
+    const len = Math.max(0.001, sqrt(dx * dx + dy * dy));
     this.vx = (dx / len) * this.speed;
     this.vy = (dy / len) * this.speed;
     this.r = 6;
@@ -1340,7 +1340,7 @@ class BossDirectShot {
     const speed = 8;
     const dx = target.x - x;
     const dy = target.y - y;
-    const len = max(0.001, sqrt(dx * dx + dy * dy));
+    const len = Math.max(0.001, sqrt(dx * dx + dy * dy));
     const baseDirX = dx / len;
     const baseDirY = dy / len;
 
@@ -1350,7 +1350,7 @@ class BossDirectShot {
     const randY = sin(randAngle);
     const mixedX = baseDirX * 0.5 + randX * 0.5;
     const mixedY = baseDirY * 0.5 + randY * 0.5;
-    const mixLen = max(0.001, sqrt(mixedX * mixedX + mixedY * mixedY));
+    const mixLen = Math.max(0.001, sqrt(mixedX * mixedX + mixedY * mixedY));
 
     this.vx = (mixedX / mixLen) * speed;
     this.vy = (mixedY / mixLen) * speed;
@@ -1526,7 +1526,7 @@ class Powerup {
     else glowColor = color(120, 255, 160, 130);
     noStroke();
     fill(glowColor);
-    circle(this.x, this.y, max(this.w, this.h) + 18);
+    circle(this.x, this.y, Math.max(this.w, this.h) + 18);
 
     const img =
       this.type === "SHIELD"
@@ -1558,7 +1558,7 @@ class Powerup {
     if (this.type === "SHIELD") {
       player.shield = 1;
       player.shieldCollected++;
-      const desiredBuddies = min(floor(player.shieldCollected / 5), player.maxBuddies);
+      const desiredBuddies = Math.min(floor(player.shieldCollected / 5), player.maxBuddies);
       while (player.buddies.length < desiredBuddies) {
         player.addBuddy();
       }
@@ -1569,7 +1569,7 @@ class Powerup {
       player.rapidCollected++;
       playSound(sRapid);
     } else if (this.type === "MEDICAL") {
-      player.hp = min(player.maxHp, player.hp + 1);
+      player.hp = Math.min(player.maxHp, player.hp + 1);
       playSound(sMedical);
     }
     score += 10;
