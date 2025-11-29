@@ -42,6 +42,8 @@ let tick = 0; // frame-ish counter
 let nextWaveTime = 1; // seconds
 let waveIndex = 0;
 let sequenceCycle = 0;
+let stage = 1;
+let pendingAdvanceStage = false;
 let victoryRestartTimer = 0;
 
 let sniperPhaseActive = false;
@@ -164,13 +166,16 @@ function draw() {
     if (boss && boss.hp <= 0) {
       gameState = "victory";
       victoryRestartTimer = 3;
+      pendingAdvanceStage = true;
     }
   } else if (gameState === "victory") {
     updateAndDrawAll();
     victoryRestartTimer -= dt;
-    drawOverlay(`Boss defeated! Restarting... ${max(1, Math.ceil(victoryRestartTimer))}s`);
+    drawOverlay(
+      `Boss defeated! Stage ${stage + 1} deploying in ${max(1, Math.ceil(victoryRestartTimer))}s`
+    );
     if (victoryRestartTimer <= 0) {
-      resetGame();
+      resetGame(false, pendingAdvanceStage);
     }
   } else if (gameState === "gameOver") {
     updateAndDrawAll();
@@ -278,6 +283,15 @@ const wavePlan = [
   { type: "SNIPER_PHASE", duration: 8, spacing: 4 },
 ];
 
+function fireRateFactor() {
+  return 1 + 0.1 * max(0, stage - 1);
+}
+
+function scaledFireTimer(min, max) {
+  const factor = fireRateFactor();
+  return max(8, int(random(min, max) / factor));
+}
+
 function handleSpawns(allowNormalEnemies = true) {
   if (!allowNormalEnemies || bossSpawned) return;
 
@@ -321,9 +335,11 @@ function handleSpawns(allowNormalEnemies = true) {
 
 function spawnPlannedWave(step) {
   const count = step.count
-    ? step.count + sequenceCycle
-    : int(random(step.min, step.max + 1 + sequenceCycle));
-  const cappedCount = step.type === "INFANTRY" ? min(count, 6) : min(count, 2);
+    ? step.count + sequenceCycle + (stage - 1)
+    : int(random(step.min, step.max + 1 + sequenceCycle + (stage - 1)));
+  const baseCap = step.type === "INFANTRY" ? 6 : 2;
+  const cap = baseCap + (stage - 1);
+  const cappedCount = min(count, cap);
   const baseY = random(120, height - 120);
   const spacing = step.type === "CAVALRY" ? 90 : step.type === "CANNON" ? 140 : 70;
 
@@ -476,8 +492,15 @@ function updateAndDrawAll() {
     e.draw();
 
     if (!e.dead && e.collidesWithPlayer(player)) {
-      e.dead = true;
-      player.takeHit();
+      if (e.type === "BOSS") {
+        if (player.canBeHit()) {
+          player.takeHit();
+          e.hp = max(0, e.hp - 10);
+        }
+      } else {
+        e.dead = true;
+        player.takeHit();
+      }
     }
 
     for (let j = bullets.length - 1; j >= 0; j--) {
@@ -589,7 +612,7 @@ function drawHUD() {
   fill(255);
   textSize(14);
   textAlign(LEFT, CENTER);
-  text("Kriegsspiel Defender - Level 1: Waterloo", 10, 16);
+  text(`Kriegsspiel Defender - Stage ${stage}: Waterloo`, 10, 16);
 
   textAlign(RIGHT, CENTER);
   text(
@@ -648,6 +671,7 @@ class Player {
     this.rapidCollected = 0;
     this.buddies = [];
     this.maxBuddies = 5;
+    this.invulnTimer = 0;
     this.hitFlashTimer = 0;
   }
 
@@ -714,6 +738,10 @@ class Player {
 
     this.x = constrain(this.x, minX, maxX);
     this.y = constrain(this.y, minY, maxY);
+
+    if (this.invulnTimer > 0) {
+      this.invulnTimer--;
+    }
 
     if (this.fireCooldown > 0) {
       this.fireCooldown--;
@@ -797,6 +825,7 @@ class Player {
   }
 
   takeHit() {
+    if (!this.canBeHit()) return;
     if (this.shield > 0) {
       this.shield--;
     } else {
@@ -805,8 +834,13 @@ class Player {
       this.rapidTimer = 0;
       this.rapidCollected = 0;
     }
+    this.invulnTimer = 60;
     this.hitFlashTimer = 15;
     playSound(sPlayerHit);
+  }
+
+  canBeHit() {
+    return this.invulnTimer <= 0;
   }
 
   powerLabel() {
@@ -961,21 +995,21 @@ class Enemy {
       this.h = size.h;
       this.hp = 3;
       this.speed = 2.2;
-      this.fireTimer = int(random(90, 150));
+      this.fireTimer = scaledFireTimer(90, 150);
     } else if (this.type === "SNIPER") {
       const size = sizeFromImage(imgSniper, 70, 70);
       this.w = size.w;
       this.h = size.h;
       this.hp = 1;
       this.speed = 0;
-      this.fireTimer = int(random(45, 75));
+      this.fireTimer = scaledFireTimer(45, 75);
     } else if (this.type === "SNIPER2") {
       const size = sizeFromImage(imgSniperBack, 70, 70);
       this.w = size.w;
       this.h = size.h;
       this.hp = 1;
       this.speed = 3;
-      this.fireTimer = int(random(30, 60));
+      this.fireTimer = scaledFireTimer(30, 60);
       this.lifeTimer = 60 * 5;
       this.targetX = this.targetX || width * 0.18;
       this.retreating = false;
@@ -1008,7 +1042,7 @@ class Enemy {
       if (this.fireTimer <= 0) {
         enemyProjectiles.push(new CannonShot(this.x - this.w / 2, this.y));
         playSound(sCannon);
-        this.fireTimer = int(random(110, 170));
+        this.fireTimer = scaledFireTimer(110, 170);
       }
     } else if (this.type === "SNIPER") {
       if (this.x > width - 80) {
@@ -1018,7 +1052,7 @@ class Enemy {
       if (this.fireTimer <= 0 && this.x <= width - 80) {
         enemyProjectiles.push(new SniperShot(this.x - this.w / 2, this.y, player));
         playSound(sSniperShot);
-        this.fireTimer = int(random(75, 120));
+        this.fireTimer = scaledFireTimer(75, 120);
       }
     } else if (this.type === "SNIPER2") {
       if (this.x < this.targetX) {
@@ -1030,7 +1064,7 @@ class Enemy {
         if (this.fireTimer <= 0) {
           enemyProjectiles.push(new SniperShot(this.x + this.w / 2, this.y, player));
           playSound(sSniperShot);
-          this.fireTimer = int(random(60, 90));
+          this.fireTimer = scaledFireTimer(60, 90);
         }
         if (this.lifeTimer <= 0) {
           this.retreating = true;
@@ -1610,7 +1644,14 @@ function beginPlayFromStart() {
   startBackgroundMusic();
 }
 
-function resetGame(pauseAtStart = false) {
+function resetGame(pauseAtStart = false, advanceStage = false) {
+  if (pauseAtStart) {
+    stage = 1;
+  } else if (advanceStage) {
+    stage++;
+  } else {
+    stage = 1;
+  }
   bullets = [];
   enemies = [];
   powerups = [];
@@ -1631,6 +1672,7 @@ function resetGame(pauseAtStart = false) {
   cannonOnslaughtActive = false;
   cannonOnslaughtNextSpawn = 0;
   victoryRestartTimer = 0;
+  pendingAdvanceStage = false;
   if (!pauseAtStart) {
     startBackgroundMusic();
   }
