@@ -24,6 +24,11 @@ let imgHedge;
 let imgPowerupShield;
 let imgPowerupRapid;
 let bgMusic;
+let sCannon;
+let sRapid;
+let sShield;
+let sPlayerShot;
+let sSniperShot;
 
 // Timing
 let levelTimer = 0; // seconds
@@ -106,6 +111,11 @@ function preload() {
   loadOptionalImage(["assets/powerup_shield.png"], (img) => (imgPowerupShield = img));
   loadOptionalImage(["assets/powerup_rapid.png"], (img) => (imgPowerupRapid = img));
   loadOptionalSound(["assets/BG_Music_Lvl_1.wav"], (snd) => (bgMusic = snd));
+  loadOptionalSound(["assets/Cannon.wav"], (snd) => (sCannon = snd));
+  loadOptionalSound(["assets/Military_Drums_Level_Up.wav"], (snd) => (sRapid = snd));
+  loadOptionalSound(["assets/PowerUp_Shields.wav"], (snd) => (sShield = snd));
+  loadOptionalSound(["assets/Player_Shot.wav"], (snd) => (sPlayerShot = snd));
+  loadOptionalSound(["assets/Sniper_Shot.wav"], (snd) => (sSniperShot = snd));
 }
 
 function setup() {
@@ -165,6 +175,15 @@ function startBackgroundMusic() {
     bgMusic.setLoop(true);
     bgMusic.play();
   }
+}
+
+function playSound(snd) {
+  if (!snd) return;
+  const ctx = getAudioContext();
+  if (ctx.state !== "running") {
+    ctx.resume();
+  }
+  snd.play();
 }
 
 // --- Map scrolling ---
@@ -680,6 +699,7 @@ class Player {
 
       dirs.forEach((d) => bullets.push(new Bullet(this.x + this.w / 2, this.y, d.x, d.y, bulletSpeed)));
       this.fireCooldown = this.baseCooldown;
+      playSound(sPlayerShot);
     }
   }
 
@@ -875,6 +895,7 @@ class Enemy {
       this.fireTimer--;
       if (this.fireTimer <= 0) {
         enemyProjectiles.push(new CannonShot(this.x - this.w / 2, this.y));
+        playSound(sCannon);
         this.fireTimer = int(random(110, 170));
       }
     } else if (this.type === "SNIPER") {
@@ -884,6 +905,7 @@ class Enemy {
       this.fireTimer--;
       if (this.fireTimer <= 0 && this.x <= width - 80) {
         enemyProjectiles.push(new SniperShot(this.x - this.w / 2, this.y, player));
+        playSound(sSniperShot);
         this.fireTimer = int(random(75, 120));
       }
     } else if (this.type === "BOSS") {
@@ -972,6 +994,7 @@ class Enemy {
   runCannonBarrage() {
     if (!this.barrageQueued) {
       const blasts = 6;
+      playSound(sCannon);
       for (let i = 0; i < blasts; i++) {
         const targetX = random(width * 0.15, width * 0.75);
         const targetY = random(110, height - 110);
@@ -1337,10 +1360,12 @@ class Powerup {
       while (player.buddies.length < desiredBuddies) {
         player.addBuddy();
       }
+      playSound(sShield);
     } else if (this.type === "RAPID") {
       player.baseCooldown = 4;
       player.rapidTimer = 60 * 6; // ~6 seconds at 60fps
       player.rapidCollected++;
+      playSound(sRapid);
     }
     score += 10;
   }

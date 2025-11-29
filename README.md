@@ -21,6 +21,11 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
    - `assets/powerup_rapid.png`
    - `assets/powerup_battalion.png` (art for the trailing followers)
    - `assets/BG_Music_Lvl_1.wav` (optional looping background music)
+   - `assets/Cannon.wav` (fires when cannons or the boss artillery attack)
+   - `assets/Military_Drums_Level_Up.wav` (plays on rapid-fire pickup)
+   - `assets/PowerUp_Shields.wav` (plays on shield pickup)
+   - `assets/Player_Shot.wav` (plays when the player fires)
+   - `assets/Sniper_Shot.wav` (plays when snipers fire)
 
 ## File overview
 
