@@ -24,12 +24,15 @@ let imgMap;
 let imgHedge;
 let imgPowerupShield;
 let imgPowerupRapid;
+let imgPowerupMedical;
 let bgMusic;
 let sCannon;
 let sRapid;
 let sShield;
 let sPlayerShot;
 let sSniperShot;
+let sMedical;
+let sPlayerHit;
 
 // Timing
 let levelTimer = 0; // seconds
@@ -117,12 +120,15 @@ function preload() {
   loadOptionalImage(["assets/hedgerow.png"], (img) => (imgHedge = img));
   loadOptionalImage(["assets/powerup_shield.png"], (img) => (imgPowerupShield = img));
   loadOptionalImage(["assets/powerup_rapid.png"], (img) => (imgPowerupRapid = img));
+  loadOptionalImage(["assets/powerup_medical.png"], (img) => (imgPowerupMedical = img));
   loadOptionalSound(["assets/BG_Music_Lvl_1.wav"], (snd) => (bgMusic = snd));
   loadOptionalSound(["assets/Cannon.wav"], (snd) => (sCannon = snd));
   loadOptionalSound(["assets/Military_Drums_Level_Up.wav"], (snd) => (sRapid = snd));
   loadOptionalSound(["assets/PowerUp_Shields.wav"], (snd) => (sShield = snd));
   loadOptionalSound(["assets/Player_Shot.wav"], (snd) => (sPlayerShot = snd));
   loadOptionalSound(["assets/Sniper_Shot.wav"], (snd) => (sSniperShot = snd));
+  loadOptionalSound(["assets/powerup_medical.wav"], (snd) => (sMedical = snd));
+  loadOptionalSound(["assets/player_hit.wav"], (snd) => (sPlayerHit = snd));
 }
 
 function setup() {
@@ -518,9 +524,25 @@ function handleAutoFire() {
 
 // --- Power-up drop logic ---
 
+function pickPowerupType() {
+  // Weighted so MEDICAL is 1/10th as common as other drops
+  const table = [
+    { type: "SHIELD", weight: 1 },
+    { type: "RAPID", weight: 1 },
+    { type: "MEDICAL", weight: 0.1 },
+  ];
+  const total = table.reduce((sum, t) => sum + t.weight, 0);
+  let roll = random(total);
+  for (const entry of table) {
+    if (roll < entry.weight) return entry.type;
+    roll -= entry.weight;
+  }
+  return "SHIELD";
+}
+
 function maybeDropPowerup(x, y) {
   if (random() < 0.25) {
-    const type = random(["SHIELD", "RAPID"]);
+    const type = pickPowerupType();
     powerups.push(new Powerup(x, y, type));
   }
 }
@@ -591,7 +613,8 @@ class Player {
     this.w = playerImg ? playerImg.width * PLAYER_IMG_SCALE : 40;
     this.h = playerImg ? playerImg.height * PLAYER_IMG_SCALE : 40;
     this.speed = 5;
-    this.hp = 3;
+    this.maxHp = 3;
+    this.hp = this.maxHp;
     this.fireCooldown = 0;
     this.baseCooldown = 24;
     this.narrowing = false;
@@ -601,6 +624,7 @@ class Player {
     this.rapidCollected = 0;
     this.buddies = [];
     this.maxBuddies = 5;
+    this.hitFlashTimer = 0;
   }
 
   addBuddy() {
@@ -658,8 +682,8 @@ class Player {
       mouseY <= height;
 
     if (mouseUsable) {
-      const offsetX = this.w * 0.25;
-      const offsetY = -this.h * 0.25;
+      const offsetX = this.w * 0.35;
+      const offsetY = -this.h * 0.35;
       this.x = mouseX + offsetX;
       this.y = mouseY + offsetY;
     }
@@ -678,6 +702,10 @@ class Player {
       }
     }
 
+    if (this.hitFlashTimer > 0) {
+      this.hitFlashTimer--;
+    }
+
     if (this.hp <= 0 && gameState !== "gameOver") {
       gameState = "gameOver";
     }
@@ -686,6 +714,21 @@ class Player {
   draw() {
     push();
     translate(this.x, this.y);
+
+    if (this.hitFlashTimer > 0) {
+      const t = this.hitFlashTimer / 15;
+      const radius = max(this.w, this.h) * (1.1 + (1 - t) * 0.6);
+      const points = 12;
+      noStroke();
+      fill(220, 40, 40, 140 * t);
+      beginShape();
+      for (let i = 0; i < points; i++) {
+        const angle = (TWO_PI / points) * i;
+        const r = i % 2 === 0 ? radius : radius * 0.55;
+        vertex(cos(angle) * r, sin(angle) * r);
+      }
+      endShape(CLOSE);
+    }
 
     if (this.shield > 0) {
       noFill();
@@ -738,6 +781,8 @@ class Player {
       this.rapidTimer = 0;
       this.rapidCollected = 0;
     }
+    this.hitFlashTimer = 15;
+    playSound(sPlayerHit);
   }
 
   powerLabel() {
@@ -991,7 +1036,7 @@ class Enemy {
     }
 
     if (random() < 0.45) {
-      const type = random(["SHIELD", "RAPID"]);
+      const type = pickPowerupType();
       powerups.push(new Powerup(this.x - this.w / 2, this.y, type));
     }
 
@@ -1396,8 +1441,14 @@ class Powerup {
     this.x = x;
     this.y = y;
     this.type = type;
-    this.w = 24;
-    this.h = 24;
+    if (this.type === "MEDICAL" && imgPowerupMedical) {
+      const size = sizeFromImage(imgPowerupMedical, 28, 28);
+      this.w = size.w;
+      this.h = size.h;
+    } else {
+      this.w = 24;
+      this.h = 24;
+    }
     this.speed = 3;
   }
 
@@ -1411,23 +1462,32 @@ class Powerup {
     noStroke();
 
     // Glow halo
-    const glowColor = this.type === "SHIELD" ? color(120, 210, 255, 130) : color(255, 210, 120, 130);
+    let glowColor;
+    if (this.type === "SHIELD") glowColor = color(120, 210, 255, 130);
+    else if (this.type === "RAPID") glowColor = color(255, 210, 120, 130);
+    else glowColor = color(120, 255, 160, 130);
     noStroke();
     fill(glowColor);
     circle(this.x, this.y, max(this.w, this.h) + 18);
 
-    const img = this.type === "SHIELD" ? imgPowerupShield : imgPowerupRapid;
+    const img =
+      this.type === "SHIELD"
+        ? imgPowerupShield
+        : this.type === "RAPID"
+        ? imgPowerupRapid
+        : imgPowerupMedical;
     if (img) {
       imageMode(CENTER);
       image(img, this.x, this.y, this.w, this.h);
     } else {
       if (this.type === "SHIELD") fill(100, 200, 255);
       else if (this.type === "RAPID") fill(255, 200, 80);
+      else fill(120, 230, 150);
       rect(this.x, this.y, this.w, this.h, 3);
       fill(0);
       textAlign(CENTER, CENTER);
       textSize(10);
-      text(this.type === "SHIELD" ? "S" : "R", this.x, this.y);
+      text(this.type === "SHIELD" ? "S" : this.type === "RAPID" ? "R" : "H", this.x, this.y);
     }
     pop();
   }
@@ -1450,6 +1510,9 @@ class Powerup {
       player.rapidTimer = 60 * 6; // ~6 seconds at 60fps
       player.rapidCollected++;
       playSound(sRapid);
+    } else if (this.type === "MEDICAL") {
+      player.hp = min(player.maxHp, player.hp + 1);
+      playSound(sMedical);
     }
     score += 10;
   }
