@@ -781,7 +781,7 @@ class Player {
     if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) nextY += this.speed;
 
     // Mouse control (clamped to the canvas during play/boss)
-    const mouseUsable = (gameState === "playing" || gameState === "boss") && isMouseInCanvas();
+    const mouseUsable = gameState === "playing" || gameState === "boss";
 
     if (mouseUsable) {
       const targetX = constrain(mouseX, 0, width);
@@ -1621,7 +1621,7 @@ class Powerup {
       playSound(sShield);
     } else if (this.type === "RAPID") {
       player.baseCooldown = 8;
-      player.rapidTimer = 60 * 6; // ~6 seconds at 60fps
+      player.rapidTimer = 60 * 18; // ~18 seconds at 60fps
       player.rapidCollected++;
       playSound(sRapid);
     } else if (this.type === "MEDICAL") {
