@@ -18,6 +18,7 @@ let imgCavalry;
 let imgCannon;
 let imgBoss;
 let imgSniper;
+let imgSniperBack;
 let imgBattalion;
 let imgMap;
 let imgHedge;
@@ -41,6 +42,7 @@ let victoryRestartTimer = 0;
 let sniperPhaseActive = false;
 let sniperEndTime = 0;
 let sniperNextSpawn = 0;
+let backSniperNextSpawn = 25;
 let cannonOnslaughtActive = false;
 let cannonOnslaughtNextSpawn = 0;
 
@@ -104,6 +106,11 @@ function preload() {
   loadOptionalImage(["assets/french_cannon.png"], (img) => (imgCannon = img));
   loadOptionalImage(["assets/french_commander_boss.png"], (img) => (imgBoss = img));
   loadOptionalImage(["assets/french_sniper.png"], (img) => (imgSniper = img));
+  loadOptionalImage([
+    "assets/french_sniper2.png",
+    "assets/french_sniper_2.png",
+    "assets/sniper_2.png",
+  ], (img) => (imgSniperBack = img));
   loadOptionalImage(["assets/powerup_battalion.png"], (img) => (imgBattalion = img));
   // Try PNG first, then JPEG for the map because some references ship as .jpg
   loadOptionalImage(["assets/waterloo_map.png", "assets/waterloo_map.jpg"], (img) => (imgMap = img));
@@ -348,12 +355,29 @@ function spawnSniper(edge) {
   enemies.push(sniper);
 }
 
+function maybeSpawnBackSniper() {
+  if ((gameState !== "playing" && gameState !== "boss") || boss?.hp <= 0) return;
+
+  const existing = enemies.some((e) => e.type === "SNIPER2" && !e.dead);
+  if (existing) return;
+
+  if (levelTimer >= backSniperNextSpawn) {
+    const y = random(120, height - 120);
+    const sniper = new Enemy(-80, y, "SNIPER2");
+    sniper.targetX = width * 0.18;
+    enemies.push(sniper);
+    backSniperNextSpawn = levelTimer + random(14, 26);
+  }
+}
+
 // --- Core update/draw loop ---
 
 function updateAndDrawAll() {
   if (player.narrowing) {
     drawNarrowBars();
   }
+
+  maybeSpawnBackSniper();
 
   player.update();
   handleAutoFire();
@@ -506,6 +530,7 @@ function addKillScore(type) {
   else if (type === "CAVALRY") score += 20;
   else if (type === "CANNON") score += 20;
   else if (type === "SNIPER") score += 30;
+  else if (type === "SNIPER2") score += 40;
   else if (type === "BOSS") score += 1000;
 }
 
@@ -633,8 +658,10 @@ class Player {
       mouseY <= height;
 
     if (mouseUsable) {
-      this.x = mouseX;
-      this.y = mouseY;
+      const offsetX = this.w * 0.25;
+      const offsetY = -this.h * 0.25;
+      this.x = mouseX + offsetX;
+      this.y = mouseY + offsetY;
     }
 
     this.x = constrain(this.x, minX, maxX);
@@ -769,10 +796,16 @@ class BattalionBuddy {
 
   setIndex(index) {
     this.index = index;
-    const column = floor(index / 2);
-    const row = index % 2;
-    const yOffset = row === 0 ? -30 : 30;
-    this.offset = { x: -60 - column * 28, y: yOffset };
+    const presets = [
+      { x: 60, y: -20 },
+      { x: -60, y: 20 },
+      { x: 90, y: 30 },
+      { x: -90, y: -30 },
+      { x: 120, y: 0 },
+    ];
+
+    const choice = presets[min(index, presets.length - 1)];
+    this.offset = { x: choice.x, y: choice.y };
   }
 
   update(player) {
@@ -867,6 +900,15 @@ class Enemy {
       this.hp = 1;
       this.speed = 0;
       this.fireTimer = int(random(45, 75));
+    } else if (this.type === "SNIPER2") {
+      const size = sizeFromImage(imgSniperBack, 70, 70);
+      this.w = size.w;
+      this.h = size.h;
+      this.hp = 1;
+      this.speed = 3;
+      this.fireTimer = int(random(30, 60));
+      this.lifeTimer = 60 * 5;
+      this.targetX = this.targetX || width * 0.18;
     } else if (this.type === "BOSS") {
       const size = sizeFromImage(imgBoss, 280, 280);
       this.w = size.w;
@@ -906,6 +948,20 @@ class Enemy {
         enemyProjectiles.push(new SniperShot(this.x - this.w / 2, this.y, player));
         playSound(sSniperShot);
         this.fireTimer = int(random(75, 120));
+      }
+    } else if (this.type === "SNIPER2") {
+      if (this.x < this.targetX) {
+        this.x += this.speed;
+      }
+      this.fireTimer--;
+      this.lifeTimer--;
+      if (this.fireTimer <= 0) {
+        enemyProjectiles.push(new SniperShot(this.x + this.w / 2, this.y, player));
+        playSound(sSniperShot);
+        this.fireTimer = int(random(60, 90));
+      }
+      if (this.lifeTimer <= 0) {
+        this.dead = true;
       }
     } else if (this.type === "BOSS") {
       this.x = max(this.x, width * 0.65);
@@ -1024,6 +1080,8 @@ class Enemy {
       ? imgCannon
       : this.type === "SNIPER"
       ? imgSniper
+      : this.type === "SNIPER2"
+      ? imgSniperBack
       : this.type === "BOSS"
       ? imgBoss
       : null;
@@ -1041,6 +1099,8 @@ class Enemy {
         fill(80, 80, 80);
       } else if (this.type === "SNIPER") {
         fill(180, 40, 40);
+      } else if (this.type === "SNIPER2") {
+        fill(90, 50, 160);
       } else if (this.type === "BOSS") {
         fill(160, 40, 120);
       }
@@ -1054,6 +1114,7 @@ class Enemy {
       if (this.type === "CAVALRY") text("CAV", this.x, this.y);
       if (this.type === "CANNON") text("CAN", this.x, this.y);
       if (this.type === "SNIPER") text("SNP", this.x, this.y);
+      if (this.type === "SNIPER2") text("SNP2", this.x, this.y);
       if (this.type === "BOSS") text("MARSHAL", this.x, this.y);
     }
     pop();
@@ -1422,6 +1483,7 @@ function beginPlayFromStart() {
   waveIndex = 0;
   sequenceCycle = 0;
   sniperPhaseActive = false;
+  backSniperNextSpawn = 25;
   cannonOnslaughtActive = false;
   cannonOnslaughtNextSpawn = 0;
   startBackgroundMusic();
@@ -1444,6 +1506,7 @@ function resetGame(pauseAtStart = false) {
   waveIndex = 0;
   sequenceCycle = 0;
   sniperPhaseActive = false;
+  backSniperNextSpawn = 25;
   cannonOnslaughtActive = false;
   cannonOnslaughtNextSpawn = 0;
   victoryRestartTimer = 0;

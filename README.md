@@ -6,14 +6,15 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
 
 1. Open `index.html` in a browser or drop `index.html` + `sketch.js` into the p5 web editor.
 2. Press **Space** or **Enter** to leave the start screen. Controls: move with **mouse**, **WASD**, or **arrow keys**; hold **Space** or **Left Click** to auto-fire (multi-shot upgrades fire extra angles automatically); restart with **R** after defeat (boss clears auto-restart the loop). If you drop in background music (`assets/BG_Music_Lvl_1.wav`), it will loop after you start the level.
-3. Scoring: +10 (power-up pickup), +10 (infantry kill), +20 (cavalry kill), +20 (cannon kill), +30 (sniper kill), +1000 (boss kill).
-4. Power-ups: Shields—every **5 shields** adds another battalion follower (up to **5 followers**). They shoot randomly in all eight compass directions but die in one hit from enemy fire. Rapid-fire—collect **5** tokens to fire east + northeast + southeast; collect **10** to add a rear shot. Losing 1 HP clears rapid-fire and its timer.
+3. Scoring: +10 (power-up pickup), +10 (infantry kill), +20 (cavalry kill), +20 (cannon kill), +30 (sniper kill), +40 (rear sniper kill), +1000 (boss kill).
+4. Power-ups: Shields—every **5 shields** adds another battalion follower (up to **5 followers**). They line up alternately in front of and behind you (acting as a mini-shield wall), shoot randomly in all eight compass directions, and die in one hit from enemy fire. Rapid-fire—collect **5** tokens to fire east + northeast + southeast; collect **10** to add a rear shot. Losing 1 HP clears rapid-fire and its timer.
 5. Drop your own art into a local `assets/` folder (create it if it doesn’t exist—this repo ignores `assets/` entirely). The sketch adds a cache-busting query parameter to each load so refreshed pages pull fresh art. It will auto-load these filenames if present (PNG or, for the map, PNG/JPG) and otherwise fall back to the placeholder shapes:
    - `assets/player_block.png`
    - `assets/french_infantry.png`
    - `assets/french_cavalry.png`
    - `assets/french_cannon.png`
    - `assets/french_sniper.png`
+   - `assets/french_sniper2.png` (or `assets/french_sniper_2.png` / `assets/sniper_2.png`) for the rear sniper
    - `assets/french_commander_boss.png`
    - `assets/waterloo_map.png` **or** `assets/waterloo_map.jpg`
    - `assets/hedgerow.png` (tiled cover during the sniper squeeze)
@@ -24,7 +25,7 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
    - `assets/Cannon.wav` (fires when cannons or the boss artillery attack)
    - `assets/Military_Drums_Level_Up.wav` (plays on rapid-fire pickup)
    - `assets/PowerUp_Shields.wav` (plays on shield pickup)
-   - `assets/Player_Shot.wav` (plays when the player fires)
+   - `assets/Player_Shot.wav` (player fire SFX; currently muted in code to reduce audio load)
    - `assets/Sniper_Shot.wav` (plays when snipers fire)
 
 ## File overview
@@ -38,6 +39,7 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
 - Cavalry arrive in fast zig-zags (only 1–2 at a time), then infantry return in formations capped at six.
 - Cannons join with slow shells that burst into lingering smoke clouds.
 - A narrowing sniper channel fires from top and bottom edges (snipers don’t stack on the same edge).
+- A rear sniper variant periodically pops in from behind the player, fires for five seconds, and retreats.
 - Just before the boss (around **2:50–3:00**), a cannon onslaught floods the screen (up to ten cannons).
 - The boss enters at the **3-minute mark** with 20× HP, rotating attacks (softer-aim direct shots, widening half-circle spreads, and random cannon strikes) and will occasionally drop a rare power-up during the fight. When the boss falls, the level automatically restarts.
 
