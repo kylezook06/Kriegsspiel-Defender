@@ -101,19 +101,12 @@ function loadOptionalSound(paths, setter) {
   tryNext();
 }
 
-function requestGamePointerLock() {
-  if (!canvasEl) return;
-  const target = canvasEl.elt || canvasEl.canvas || canvasEl;
-  if (document.pointerLockElement === target) return;
-  if (target.requestPointerLock) {
-    target.requestPointerLock();
-  }
-}
+function requestGamePointerLock() {}
 
-function releaseGamePointerLock() {
-  if (document.pointerLockElement) {
-    document.exitPointerLock();
-  }
+function releaseGamePointerLock() {}
+
+function isMouseInCanvas() {
+  return mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height;
 }
 
 function sizeFromImage(img, fallbackW, fallbackH = fallbackW) {
@@ -192,7 +185,6 @@ function draw() {
       gameState = "victory";
       victoryRestartTimer = 3;
       pendingAdvanceStage = true;
-      releaseGamePointerLock();
     }
   } else if (gameState === "victory") {
     updateAndDrawAll();
@@ -261,14 +253,12 @@ function togglePause() {
     if (musicEnabled && soundEnabled) {
       startBackgroundMusic();
     }
-    requestGamePointerLock();
     return;
   }
 
   if (gameState === "playing" || gameState === "boss") {
     pauseReturnState = gameState;
     gameState = "paused";
-    releaseGamePointerLock();
   }
 }
 
@@ -781,26 +771,29 @@ class Player {
       maxY = height - 120;
     }
 
+    let nextX = this.x;
+    let nextY = this.y;
+
     // Keyboard control
-    if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) this.x -= this.speed;
-    if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) this.x += this.speed;
-    if (keyIsDown(UP_ARROW) || keyIsDown(87)) this.y -= this.speed;
-    if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) this.y += this.speed;
+    if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) nextX -= this.speed;
+    if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) nextX += this.speed;
+    if (keyIsDown(UP_ARROW) || keyIsDown(87)) nextY -= this.speed;
+    if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) nextY += this.speed;
 
     // Mouse control (clamped to the canvas during play/boss)
-    const mouseUsable = gameState === "playing" || gameState === "boss";
+    const mouseUsable = (gameState === "playing" || gameState === "boss") && isMouseInCanvas();
 
     if (mouseUsable) {
       const targetX = constrain(mouseX, 0, width);
       const targetY = constrain(mouseY, 0, height);
       const offsetX = this.w * 0.35;
       const offsetY = -this.h * 0.35;
-      this.x = targetX + offsetX;
-      this.y = targetY + offsetY;
+      nextX = targetX + offsetX;
+      nextY = targetY + offsetY;
     }
 
-    this.x = constrain(this.x, minX, maxX);
-    this.y = constrain(this.y, minY, maxY);
+    this.x = constrain(nextX, minX, maxX);
+    this.y = constrain(nextY, minY, maxY);
 
     if (this.invulnTimer > 0) {
       this.invulnTimer--;
@@ -823,7 +816,6 @@ class Player {
 
     if (this.hp <= 0 && gameState !== "gameOver") {
       gameState = "gameOver";
-      releaseGamePointerLock();
     }
   }
 
@@ -1710,7 +1702,6 @@ function beginPlayFromStart() {
   backSniperNextSpawn = 25;
   cannonOnslaughtActive = false;
   cannonOnslaughtNextSpawn = 0;
-  requestGamePointerLock();
   startBackgroundMusic();
 }
 
@@ -1744,9 +1735,7 @@ function resetGame(pauseAtStart = false, advanceStage = false) {
   victoryRestartTimer = 0;
   pendingAdvanceStage = false;
   if (pauseAtStart) {
-    releaseGamePointerLock();
   } else {
-    requestGamePointerLock();
     startBackgroundMusic();
   }
 }
