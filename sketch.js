@@ -10,7 +10,7 @@ let enemyProjectiles = [];
 let explosions = [];
 let boss = null;
 let bossSpawned = false;
-let gameState = "start"; // "start" | "playing" | "boss" | "victory" | "gameOver"
+let gameState = "start"; // "start" | "playing" | "boss" | "paused" | "victory" | "gameOver"
 let score = 0;
 let playerImg;
 let imgInfantry;
@@ -35,6 +35,8 @@ let sMedical;
 let sPlayerHit;
 let musicEnabled = true;
 let soundEnabled = true;
+let canvasEl;
+let pauseReturnState = null;
 
 // Timing
 let levelTimer = 0; // seconds
@@ -99,6 +101,21 @@ function loadOptionalSound(paths, setter) {
   tryNext();
 }
 
+function requestGamePointerLock() {
+  if (!canvasEl) return;
+  const target = canvasEl.elt || canvasEl.canvas || canvasEl;
+  if (document.pointerLockElement === target) return;
+  if (target.requestPointerLock) {
+    target.requestPointerLock();
+  }
+}
+
+function releaseGamePointerLock() {
+  if (document.pointerLockElement) {
+    document.exitPointerLock();
+  }
+}
+
 function sizeFromImage(img, fallbackW, fallbackH = fallbackW) {
   if (!img) return { w: fallbackW, h: fallbackH };
   const ratio = img.height / img.width;
@@ -136,14 +153,15 @@ function preload() {
 }
 
 function setup() {
-  createCanvas(800, 600);
+  const cnv = createCanvas(800, 600);
+  canvasEl = cnv?.elt || cnv?.canvas || cnv;
   textFont("monospace");
   resetGame(true);
 }
 
 function draw() {
   const dt = deltaTime / 1000; // seconds
-  if (gameState !== "start") {
+  if (gameState === "playing" || gameState === "boss") {
     levelTimer += dt;
     tick++;
   }
@@ -153,6 +171,13 @@ function draw() {
 
   if (gameState === "start") {
     drawStartScreen();
+    return;
+  }
+
+  if (gameState === "paused") {
+    updateAndDrawAll(false);
+    drawOverlay("PAUSED - Press P to resume");
+    drawHUD();
     return;
   }
 
@@ -167,6 +192,7 @@ function draw() {
       gameState = "victory";
       victoryRestartTimer = 3;
       pendingAdvanceStage = true;
+      releaseGamePointerLock();
     }
   } else if (gameState === "victory") {
     updateAndDrawAll();
@@ -225,6 +251,24 @@ function toggleAllSound() {
     }
   } else if (musicEnabled && gameState !== "start") {
     startBackgroundMusic();
+  }
+}
+
+function togglePause() {
+  if (gameState === "paused") {
+    gameState = pauseReturnState || "playing";
+    pauseReturnState = null;
+    if (musicEnabled && soundEnabled) {
+      startBackgroundMusic();
+    }
+    requestGamePointerLock();
+    return;
+  }
+
+  if (gameState === "playing" || gameState === "boss") {
+    pauseReturnState = gameState;
+    gameState = "paused";
+    releaseGamePointerLock();
   }
 }
 
@@ -418,24 +462,30 @@ function maybeSpawnBackSniper() {
 
 // --- Core update/draw loop ---
 
-function updateAndDrawAll() {
+function updateAndDrawAll(doUpdate = true) {
+  const updating = doUpdate === undefined ? true : doUpdate;
+
   if (player.narrowing) {
     drawNarrowBars();
   }
 
-  maybeSpawnBackSniper();
+  if (updating) {
+    maybeSpawnBackSniper();
+    player.update();
+    handleAutoFire();
+    player.updateBuddies();
+  }
 
-  player.update();
-  handleAutoFire();
-  player.updateBuddies();
   player.draw();
   player.drawBuddies();
 
   // Bullets
   for (let i = bullets.length - 1; i >= 0; i--) {
-    bullets[i].update();
+    if (updating) {
+      bullets[i].update();
+    }
     bullets[i].draw();
-    if (bullets[i].offscreen) {
+    if (updating && bullets[i].offscreen) {
       bullets.splice(i, 1);
     }
   }
@@ -443,23 +493,27 @@ function updateAndDrawAll() {
   // Enemy projectiles
   for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
     const shot = enemyProjectiles[i];
-    shot.update();
+    if (updating) {
+      shot.update();
+    }
     shot.draw();
 
-    if (shot.collidesWithPlayer(player)) {
-      player.takeHit();
-      shot.dead = true;
-    }
-
-    for (let bi = player.buddies.length - 1; bi >= 0; bi--) {
-      const buddy = player.buddies[bi];
-      if (!shot.dead && shot.collidesWithRect(buddy.x, buddy.y, buddy.w, buddy.h)) {
-        player.removeBuddy(buddy);
+    if (updating) {
+      if (shot.collidesWithPlayer(player)) {
+        player.takeHit();
         shot.dead = true;
+      }
+
+      for (let bi = player.buddies.length - 1; bi >= 0; bi--) {
+        const buddy = player.buddies[bi];
+        if (!shot.dead && shot.collidesWithRect(buddy.x, buddy.y, buddy.w, buddy.h)) {
+          player.removeBuddy(buddy);
+          shot.dead = true;
+        }
       }
     }
 
-    if (shot.dead) {
+    if (updating && shot.dead) {
       enemyProjectiles.splice(i, 1);
     }
   }
@@ -467,70 +521,82 @@ function updateAndDrawAll() {
   // Explosion hazards
   for (let i = explosions.length - 1; i >= 0; i--) {
     const cloud = explosions[i];
-    cloud.update();
-    cloud.draw();
-    if (cloud.collidesWithPlayer(player)) {
-      player.takeHit();
-      cloud.marked = true;
+    if (updating) {
+      cloud.update();
     }
-    for (let bi = player.buddies.length - 1; bi >= 0; bi--) {
-      const buddy = player.buddies[bi];
-      if (!cloud.marked && cloud.collidesWithRect(buddy.x, buddy.y, buddy.w, buddy.h)) {
-        player.removeBuddy(buddy);
+    cloud.draw();
+    if (updating) {
+      if (cloud.collidesWithPlayer(player)) {
+        player.takeHit();
         cloud.marked = true;
       }
-    }
-    if (cloud.marked || cloud.life <= 0) {
-      explosions.splice(i, 1);
+      for (let bi = player.buddies.length - 1; bi >= 0; bi--) {
+        const buddy = player.buddies[bi];
+        if (!cloud.marked && cloud.collidesWithRect(buddy.x, buddy.y, buddy.w, buddy.h)) {
+          player.removeBuddy(buddy);
+          cloud.marked = true;
+        }
+      }
+      if (cloud.marked || cloud.life <= 0) {
+        explosions.splice(i, 1);
+      }
     }
   }
 
   // Enemies
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
-    e.update();
+    if (updating) {
+      e.update();
+    }
     e.draw();
 
-    if (!e.dead && e.collidesWithPlayer(player)) {
-      if (e.type === "BOSS") {
-        if (player.canBeHit()) {
-          player.takeHit();
-          e.hp = Math.max(0, e.hp - 10);
-        }
-      } else {
-        e.dead = true;
-        player.takeHit();
-      }
-    }
-
-    for (let j = bullets.length - 1; j >= 0; j--) {
-      const b = bullets[j];
-      if (!e.dead && e.collidesWithBullet(b)) {
-        e.hp--;
-        b.offscreen = true;
-        if (e.hp <= 0) {
-          addKillScore(e.type);
+    if (updating) {
+      if (!e.dead && e.collidesWithPlayer(player)) {
+        if (e.type === "BOSS") {
+          if (player.canBeHit()) {
+            player.takeHit();
+            e.hp = Math.max(0, e.hp - 10);
+          }
+        } else {
           e.dead = true;
-          maybeDropPowerup(e.x, e.y);
+          player.takeHit();
         }
       }
-    }
 
-    if (e.dead || e.x < -200) {
-      enemies.splice(i, 1);
+      for (let j = bullets.length - 1; j >= 0; j--) {
+        const b = bullets[j];
+        if (!e.dead && e.collidesWithBullet(b)) {
+          e.hp--;
+          b.offscreen = true;
+          if (e.hp <= 0) {
+            addKillScore(e.type);
+            e.dead = true;
+            maybeDropPowerup(e.x, e.y);
+          }
+        }
+      }
+
+      if (e.dead || e.x < -200) {
+        enemies.splice(i, 1);
+      }
     }
   }
 
   // Power-ups
   for (let i = powerups.length - 1; i >= 0; i--) {
     const p = powerups[i];
-    p.update();
+    if (updating) {
+      p.update();
+    }
     p.draw();
-    if (p.collidesWithPlayer(player)) {
-      p.applyTo(player);
-      powerups.splice(i, 1);
-    } else if (p.x < -50) {
-      powerups.splice(i, 1);
+    if (updating) {
+      if (p.collidesWithPlayer(player)) {
+        p.applyTo(player);
+        powerups.splice(i, 1);
+      } else if (p.x < -50) {
+        powerups.splice(i, 1);
+      }
     }
   }
 }
@@ -644,7 +710,7 @@ function drawStartScreen() {
   text("Kriegsspiel Defender", width / 2, height / 2 - 40);
   textSize(16);
   text(
-    "Press Space or Enter to deploy.\nMouse or WASD/Arrows to move, hold Space or Left Click to fire.\nM toggles music, N toggles all audio. R to restart after defeat.",
+    "Press Space or Enter to deploy.\nMouse or WASD/Arrows to move, hold Space or Left Click to fire.\nP pauses/unpauses. M toggles music, N toggles all audio. R to restart after defeat.",
     width / 2,
     height / 2 + 20
   );
@@ -721,19 +787,16 @@ class Player {
     if (keyIsDown(UP_ARROW) || keyIsDown(87)) this.y -= this.speed;
     if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) this.y += this.speed;
 
-    // Mouse control (mirrors position when inside the canvas during play)
-    const mouseUsable =
-      (gameState === "playing" || gameState === "boss") &&
-      mouseX >= 0 &&
-      mouseX <= width &&
-      mouseY >= 0 &&
-      mouseY <= height;
+    // Mouse control (clamped to the canvas during play/boss)
+    const mouseUsable = gameState === "playing" || gameState === "boss";
 
     if (mouseUsable) {
+      const targetX = constrain(mouseX, 0, width);
+      const targetY = constrain(mouseY, 0, height);
       const offsetX = this.w * 0.35;
       const offsetY = -this.h * 0.35;
-      this.x = mouseX + offsetX;
-      this.y = mouseY + offsetY;
+      this.x = targetX + offsetX;
+      this.y = targetY + offsetY;
     }
 
     this.x = constrain(this.x, minX, maxX);
@@ -760,6 +823,7 @@ class Player {
 
     if (this.hp <= 0 && gameState !== "gameOver") {
       gameState = "gameOver";
+      releaseGamePointerLock();
     }
   }
 
@@ -1600,6 +1664,11 @@ function keyPressed() {
     return;
   }
 
+  if (key === "p" || key === "P") {
+    togglePause();
+    return;
+  }
+
   if (key === "m" || key === "M") {
     toggleMusic();
     return;
@@ -1641,6 +1710,7 @@ function beginPlayFromStart() {
   backSniperNextSpawn = 25;
   cannonOnslaughtActive = false;
   cannonOnslaughtNextSpawn = 0;
+  requestGamePointerLock();
   startBackgroundMusic();
 }
 
@@ -1673,7 +1743,10 @@ function resetGame(pauseAtStart = false, advanceStage = false) {
   cannonOnslaughtNextSpawn = 0;
   victoryRestartTimer = 0;
   pendingAdvanceStage = false;
-  if (!pauseAtStart) {
+  if (pauseAtStart) {
+    releaseGamePointerLock();
+  } else {
+    requestGamePointerLock();
     startBackgroundMusic();
   }
 }
