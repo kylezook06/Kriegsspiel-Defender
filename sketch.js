@@ -909,11 +909,13 @@ class Enemy {
       this.fireTimer = int(random(30, 60));
       this.lifeTimer = 60 * 5;
       this.targetX = this.targetX || width * 0.18;
+      this.retreating = false;
     } else if (this.type === "BOSS") {
       const size = sizeFromImage(imgBoss, 280, 280);
       this.w = size.w;
       this.h = size.h;
-      this.hp = 800;
+      this.maxHp = 800;
+      this.hp = this.maxHp;
       this.speed = 1.5;
       this.dirY = 1;
       this.attackPhase = 0;
@@ -953,15 +955,22 @@ class Enemy {
       if (this.x < this.targetX) {
         this.x += this.speed;
       }
-      this.fireTimer--;
-      this.lifeTimer--;
-      if (this.fireTimer <= 0) {
-        enemyProjectiles.push(new SniperShot(this.x + this.w / 2, this.y, player));
-        playSound(sSniperShot);
-        this.fireTimer = int(random(60, 90));
-      }
-      if (this.lifeTimer <= 0) {
-        this.dead = true;
+      if (!this.retreating) {
+        this.fireTimer--;
+        this.lifeTimer--;
+        if (this.fireTimer <= 0) {
+          enemyProjectiles.push(new SniperShot(this.x + this.w / 2, this.y, player));
+          playSound(sSniperShot);
+          this.fireTimer = int(random(60, 90));
+        }
+        if (this.lifeTimer <= 0) {
+          this.retreating = true;
+        }
+      } else {
+        this.x -= this.speed * 1.6;
+        if (this.x < -120) {
+          this.dead = true;
+        }
       }
     } else if (this.type === "BOSS") {
       this.x = max(this.x, width * 0.65);
@@ -1116,6 +1125,21 @@ class Enemy {
       if (this.type === "SNIPER") text("SNP", this.x, this.y);
       if (this.type === "SNIPER2") text("SNP2", this.x, this.y);
       if (this.type === "BOSS") text("MARSHAL", this.x, this.y);
+    }
+
+    if (this.type === "BOSS") {
+      const barWidth = this.w * 0.8;
+      const barHeight = 12;
+      const barX = this.x;
+      const barY = this.y + this.h / 2 + 14;
+      rectMode(CENTER);
+      noStroke();
+      fill(0);
+      rect(barX, barY, barWidth, barHeight, 2);
+      const pct = constrain(this.hp / this.maxHp, 0, 1);
+      fill(80, 220, 255);
+      const innerW = barWidth * pct;
+      rect(barX - barWidth / 2 + innerW / 2, barY, innerW, barHeight - 3, 2);
     }
     pop();
   }

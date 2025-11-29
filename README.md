@@ -39,9 +39,9 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
 - Cavalry arrive in fast zig-zags (only 1–2 at a time), then infantry return in formations capped at six.
 - Cannons join with slow shells that burst into lingering smoke clouds.
 - A narrowing sniper channel fires from top and bottom edges (snipers don’t stack on the same edge).
-- A rear sniper variant periodically pops in from behind the player, fires for five seconds, and retreats.
+- A rear sniper variant periodically pops in from behind the player, fires for five seconds, and retreats off-screen to the left.
 - Just before the boss (around **2:50–3:00**), a cannon onslaught floods the screen (up to ten cannons).
-- The boss enters at the **3-minute mark** with 20× HP, rotating attacks (softer-aim direct shots, widening half-circle spreads, and random cannon strikes) and will occasionally drop a rare power-up during the fight. When the boss falls, the level automatically restarts.
+- The boss enters at the **3-minute mark** with 20× HP, rotating attacks (softer-aim direct shots, widening half-circle spreads, and random cannon strikes) and will occasionally drop a rare power-up during the fight. A health bar under the boss tracks damage. When the boss falls, the level automatically restarts.
 
 ## Customization ideas
 
