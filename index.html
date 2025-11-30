@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kriegsspiel Defender</title>
+    <!-- p5.js 1.11.x build pinned via CDN for reproducibility -->
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.1/lib/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.1/lib/addons/p5.sound.min.js"></script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #111;
+        font-family: "JetBrains Mono", "Fira Code", monospace;
+      }
+
+      canvas {
+        display: block;
+        margin: 0 auto;
+        border: 2px solid #0c1833;
+        box-shadow: 0 0 24px rgba(0, 0, 0, 0.35);
+      }
+
+      .instructions {
+        color: #e6e2d3;
+        text-align: center;
+        padding: 1rem 0 1.5rem;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="instructions">
+      <h1>Kriegsspiel Defender – Level 1</h1>
+      <p>
+        Press <strong>Space</strong> or <strong>Enter</strong> to start. Move with
+        <strong>mouse</strong>, <strong>WASD</strong>, or the arrow keys. Hold
+        <strong>Space</strong> or <strong>Left Click</strong> to auto-fire; restart with
+        <strong>R</strong> after victory or defeat.
+      </p>
+      <p>
+        The Prussian player block is already wired in from <code>assets/player_block.png</code>.
+        Drop your own PNGs into <code>assets/</code> (kept gitignored) and extend the
+        <code>preload()</code> block in <code>sketch.js</code> to bring the map and minis to life.
+        Optional audio hooks are ready for <code>BG_Music_Lvl_1.wav</code> and the sound effects
+        listed in the README.
+      </p>
+    </div>
+    <script src="sketch.js"></script>
+  </body>
+</html>
