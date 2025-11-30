@@ -1115,7 +1115,7 @@ class Enemy {
       this.attackPhase = 0;
       this.attackTimer = 0;
       this.attackCooldown = 0;
-      this.dropTimer = int(random(240, 360));
+      this.dropTimer = int(random(80, 120));
     }
   }
 
@@ -1195,7 +1195,7 @@ class Enemy {
       powerups.push(new Powerup(this.x - this.w / 2, this.y, type));
     }
 
-    this.dropTimer = int(random(300, 450));
+    this.dropTimer = int(random(100, 150));
   }
 
   updateBossAttacks() {
