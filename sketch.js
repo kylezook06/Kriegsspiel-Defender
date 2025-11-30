@@ -1091,7 +1091,7 @@ class Enemy {
       this.attackPhase = 0;
       this.attackTimer = 0;
       this.attackCooldown = 0;
-      this.dropTimer = int(random(480, 720));
+      this.dropTimer = int(random(240, 360));
     }
   }
 
@@ -1165,7 +1165,7 @@ class Enemy {
       powerups.push(new Powerup(this.x - this.w / 2, this.y, type));
     }
 
-    this.dropTimer = int(random(600, 900));
+    this.dropTimer = int(random(300, 450));
   }
 
   updateBossAttacks() {
@@ -1636,7 +1636,10 @@ class Powerup {
       player.rapidCollected++;
       playSound(sRapid);
     } else if (this.type === "MEDICAL") {
-      player.hp = Math.min(player.maxHp, player.hp + 1);
+      player.hp += 1;
+      if (player.hp > player.maxHp) {
+        player.maxHp = player.hp;
+      }
       playSound(sMedical);
     }
     score += 10;
