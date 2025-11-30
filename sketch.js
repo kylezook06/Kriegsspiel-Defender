@@ -493,14 +493,18 @@ function spawnSniper(edge) {
 function maybeSpawnBackSniper() {
   if ((gameState !== "playing" && gameState !== "boss") || boss?.hp <= 0) return;
 
-  const existing = enemies.some((e) => e.type === "SNIPER2" && !e.dead);
-  if (existing) return;
+  const maxRearSnipers = Math.min(1 + (stage - 1), 3);
+  const activeSnipers = enemies.filter((e) => e.type === "SNIPER2" && !e.dead).length;
+  if (activeSnipers >= maxRearSnipers) return;
 
   if (levelTimer >= backSniperNextSpawn) {
-    const y = random(120, height - 120);
-    const sniper = new Enemy(-80, y, "SNIPER2");
-    sniper.targetX = width * 0.18;
-    enemies.push(sniper);
+    const spawnCount = Math.max(1, maxRearSnipers - activeSnipers);
+    for (let i = 0; i < spawnCount; i++) {
+      const y = random(120, height - 120);
+      const sniper = new Enemy(-80 - i * 40, y, "SNIPER2");
+      sniper.targetX = width * 0.18;
+      enemies.push(sniper);
+    }
     backSniperNextSpawn = levelTimer + random(14, 26);
   }
 }
@@ -625,7 +629,7 @@ function updateAndDrawAll(doUpdate = true) {
             if (e.hp <= 0) {
               addKillScore(e.type);
               e.dead = true;
-              maybeDropPowerup(e.x, e.y);
+              maybeDropPowerup(e.x, e.y, e.type);
               if (e.type === "BOSS") {
                 if (!e.deathSoundPlayed) {
                   playSound(sBossDeath, "bossDeath");
@@ -717,8 +721,9 @@ function pickPowerupType() {
   return "SHIELD";
 }
 
-function maybeDropPowerup(x, y) {
-  if (random() < 0.25) {
+function maybeDropPowerup(x, y, enemyType = "") {
+  const guaranteed = enemyType === "CANNON" || enemyType === "CAVALRY";
+  if (guaranteed || random() < 0.25) {
     const type = pickPowerupType();
     powerups.push(new Powerup(x, y, type));
   }
@@ -1823,7 +1828,9 @@ function resetGame(pauseAtStart = false, advanceStage = false) {
   gameState = pauseAtStart ? "start" : "playing";
   boss = null;
   bossSpawned = false;
-  score = 0;
+  if (pauseAtStart || !advanceStage) {
+    score = 0;
+  }
   levelTimer = 0;
   tick = 0;
   nextWaveTime = 1;
