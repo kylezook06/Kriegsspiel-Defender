@@ -39,6 +39,7 @@ let musicEnabled = true;
 let soundEnabled = true;
 let canvasEl;
 let pauseReturnState = null;
+let soundLastPlay = {};
 
 // Timing
 let levelTimer = 0; // seconds
@@ -162,6 +163,10 @@ function preload() {
 function setup() {
   const cnv = createCanvas(800, 600);
   canvasEl = cnv?.elt || cnv?.canvas || cnv;
+  if (typeof masterVolume === "function") {
+    masterVolume(0.5);
+  }
+  normalizeSoundLevels();
   textFont("monospace");
   resetGame(true);
 }
@@ -229,13 +234,49 @@ function startBackgroundMusic() {
   }
 }
 
-function playSound(snd) {
+function playSound(snd, key = "generic", minIntervalMs = 0) {
   if (!snd || !soundEnabled) return;
+
+  const now = millis();
+  if (minIntervalMs > 0) {
+    const last = soundLastPlay[key] || 0;
+    if (now - last < minIntervalMs) {
+      return;
+    }
+    soundLastPlay[key] = now;
+  }
+
   const ctx = getAudioContext();
   if (ctx.state !== "running") {
     ctx.resume();
   }
   snd.play();
+}
+
+function normalizeSoundLevels() {
+  const pairs = [
+    [bgMusic, 0.3],
+    [sCannon, 0.35],
+    [sRapid, 0.25],
+    [sShield, 0.25],
+    [sSniperShot, 0.3],
+    [sMedical, 0.25],
+    [sPlayerHit, 0.4],
+    [sEnemyKill, 0.3],
+    [sBossDeath, 0.35],
+  ];
+
+  pairs.forEach(([snd, vol]) => {
+    if (snd && typeof snd.setVolume === "function") {
+      snd.setVolume(vol);
+    }
+  });
+
+  [sCannon, sSniperShot, sPlayerHit, sEnemyKill].forEach((snd) => {
+    if (snd && typeof snd.playMode === "function") {
+      snd.playMode("restart");
+    }
+  });
 }
 
 function toggleMusic() {
@@ -563,7 +604,7 @@ function updateAndDrawAll(doUpdate = true) {
             e.hp = Math.max(0, e.hp - 10);
             e.hitFlashTimer = 12;
             if (e.hp <= 0 && !e.deathSoundPlayed) {
-              playSound(sBossDeath);
+              playSound(sBossDeath, "bossDeath");
               e.deathSoundPlayed = true;
             }
           }
@@ -581,21 +622,21 @@ function updateAndDrawAll(doUpdate = true) {
           e.hp -= dmg;
           e.hitFlashTimer = 12;
           b.offscreen = true;
-          if (e.hp <= 0) {
-            addKillScore(e.type);
-            e.dead = true;
-            maybeDropPowerup(e.x, e.y);
-            if (e.type === "BOSS") {
-              if (!e.deathSoundPlayed) {
-                playSound(sBossDeath);
-                e.deathSoundPlayed = true;
+            if (e.hp <= 0) {
+              addKillScore(e.type);
+              e.dead = true;
+              maybeDropPowerup(e.x, e.y);
+              if (e.type === "BOSS") {
+                if (!e.deathSoundPlayed) {
+                  playSound(sBossDeath, "bossDeath");
+                  e.deathSoundPlayed = true;
+                }
+              } else {
+                playSound(sEnemyKill, "enemyKill", 80);
               }
-            } else {
-              playSound(sEnemyKill);
             }
           }
         }
-      }
 
       const readyToRemove =
         e.x < -200 ||
@@ -925,7 +966,7 @@ class Player {
     }
     this.invulnTimer = 60;
     this.hitFlashTimer = 15;
-    playSound(sPlayerHit);
+    playSound(sPlayerHit, "playerHit", 120);
   }
 
   canBeHit() {
@@ -1133,7 +1174,7 @@ class Enemy {
         this.fireTimer--;
         if (this.fireTimer <= 0) {
           enemyProjectiles.push(new CannonShot(this.x - this.w / 2, this.y));
-          playSound(sCannon);
+          playSound(sCannon, "cannon", 80);
           this.fireTimer = scaledFireTimer(110, 170);
         }
       } else if (this.type === "SNIPER") {
@@ -1143,7 +1184,7 @@ class Enemy {
         this.fireTimer--;
         if (this.fireTimer <= 0 && this.x <= width - 80) {
           enemyProjectiles.push(new SniperShot(this.x - this.w / 2, this.y, player));
-          playSound(sSniperShot);
+          playSound(sSniperShot, "sniper", 60);
           this.fireTimer = scaledFireTimer(75, 120);
         }
       } else if (this.type === "SNIPER2") {
@@ -1155,7 +1196,7 @@ class Enemy {
           this.lifeTimer--;
           if (this.fireTimer <= 0) {
             enemyProjectiles.push(new SniperShot(this.x + this.w / 2, this.y, player));
-            playSound(sSniperShot);
+            playSound(sSniperShot, "sniper", 60);
             this.fireTimer = scaledFireTimer(60, 90);
           }
           if (this.lifeTimer <= 0) {
@@ -1258,7 +1299,7 @@ class Enemy {
   runCannonBarrage() {
     if (!this.barrageQueued) {
       const blasts = 6;
-      playSound(sCannon);
+      playSound(sCannon, "cannon", 80);
       for (let i = 0; i < blasts; i++) {
         const targetX = random(width * 0.15, width * 0.75);
         const targetY = random(110, height - 110);
@@ -1674,18 +1715,18 @@ class Powerup {
       while (player.buddies.length < desiredBuddies) {
         player.addBuddy();
       }
-      playSound(sShield);
+      playSound(sShield, "shield", 120);
     } else if (this.type === "RAPID") {
       player.baseCooldown = 8;
       player.rapidTimer = 60 * 18; // ~18 seconds at 60fps
       player.rapidCollected++;
-      playSound(sRapid);
+      playSound(sRapid, "rapid", 120);
     } else if (this.type === "MEDICAL") {
       player.hp += 1;
       if (player.hp > player.maxHp) {
         player.maxHp = player.hp;
       }
-      playSound(sMedical);
+      playSound(sMedical, "medical", 150);
     }
     score += 10;
   }
@@ -1772,6 +1813,7 @@ function resetGame(pauseAtStart = false, advanceStage = false) {
   } else {
     stage = 1;
   }
+  soundLastPlay = {};
   bullets = [];
   enemies = [];
   powerups = [];

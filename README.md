@@ -33,6 +33,7 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
    - `assets/Sniper_Shot.wav` (plays when snipers fire)
    - `assets/enemy_down.wav` (plays when the player kills a non-boss enemy)
    - `assets/boss_down.wav` (plays when the commander boss is defeated)
+7. Audio headroom: the mix starts at 50% `masterVolume` with per-sound levels and light throttling on high-volume effects (cannons, sniper fire, kills) to avoid late-run clipping. Adjust the volumes or throttle timings in `normalizeSoundLevels()` / `playSound()` inside `sketch.js` if you want a louder or quieter mix.
 
 ## File overview
 
