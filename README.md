@@ -31,6 +31,8 @@ A p5.js (1.11.x) side-scrolling shoot 'em up where a classic Kriegsspiel block p
    - `assets/player_hit.wav` (plays when the player takes damage)
    - `assets/Player_Shot.wav` (player fire SFX; currently muted in code to reduce audio load)
    - `assets/Sniper_Shot.wav` (plays when snipers fire)
+   - `assets/enemy_down.wav` (plays when the player kills a non-boss enemy)
+   - `assets/boss_down.wav` (plays when the commander boss is defeated)
 
 ## File overview
 

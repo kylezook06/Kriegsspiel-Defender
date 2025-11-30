@@ -33,6 +33,8 @@ let sPlayerShot;
 let sSniperShot;
 let sMedical;
 let sPlayerHit;
+let sEnemyKill;
+let sBossDeath;
 let musicEnabled = true;
 let soundEnabled = true;
 let canvasEl;
@@ -153,6 +155,8 @@ function preload() {
   loadOptionalSound(["assets/Sniper_Shot.wav"], (snd) => (sSniperShot = snd));
   loadOptionalSound(["assets/powerup_medical.wav"], (snd) => (sMedical = snd));
   loadOptionalSound(["assets/player_hit.wav"], (snd) => (sPlayerHit = snd));
+  loadOptionalSound(["assets/enemy_down.wav"], (snd) => (sEnemyKill = snd));
+  loadOptionalSound(["assets/boss_down.wav"], (snd) => (sBossDeath = snd));
 }
 
 function setup() {
@@ -557,6 +561,11 @@ function updateAndDrawAll(doUpdate = true) {
           if (player.canBeHit()) {
             player.takeHit();
             e.hp = Math.max(0, e.hp - 10);
+            e.hitFlashTimer = 12;
+            if (e.hp <= 0 && !e.deathSoundPlayed) {
+              playSound(sBossDeath);
+              e.deathSoundPlayed = true;
+            }
           }
         } else {
           e.dead = true;
@@ -569,11 +578,20 @@ function updateAndDrawAll(doUpdate = true) {
         if (!e.dead && e.collidesWithBullet(b)) {
           const dmg = playerDamageMultiplier(e);
           e.hp -= dmg;
+          e.hitFlashTimer = 12;
           b.offscreen = true;
           if (e.hp <= 0) {
             addKillScore(e.type);
             e.dead = true;
             maybeDropPowerup(e.x, e.y);
+            if (e.type === "BOSS") {
+              if (!e.deathSoundPlayed) {
+                playSound(sBossDeath);
+                e.deathSoundPlayed = true;
+              }
+            } else {
+              playSound(sEnemyKill);
+            }
           }
         }
       }
@@ -1037,6 +1055,8 @@ class Enemy {
     this.type = type;
     this.dead = false;
     this.edge = null;
+    this.hitFlashTimer = 0;
+    this.deathSoundPlayed = false;
     this.initStats();
   }
 
@@ -1151,6 +1171,10 @@ class Enemy {
       this.updateBossAttacks();
       this.maybeDropBossPowerup();
     }
+
+    if (this.hitFlashTimer > 0) {
+      this.hitFlashTimer--;
+    }
   }
 
   maybeDropBossPowerup() {
@@ -1250,6 +1274,21 @@ class Enemy {
 
   draw() {
     push();
+
+    if (this.hitFlashTimer > 0) {
+      const t = this.hitFlashTimer / 12;
+      const radius = Math.max(this.w, this.h) * (1.1 + (1 - t) * 0.5);
+      const points = 10;
+      noStroke();
+      fill(140, 220, 140, 140 * t);
+      beginShape();
+      for (let i = 0; i < points; i++) {
+        const angle = (TWO_PI / points) * i;
+        const r = i % 2 === 0 ? radius : radius * 0.55;
+        vertex(this.x + cos(angle) * r, this.y + sin(angle) * r);
+      }
+      endShape(CLOSE);
+    }
 
     const img = this.type === "INFANTRY"
       ? imgInfantry
