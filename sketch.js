@@ -569,6 +569,7 @@ function updateAndDrawAll(doUpdate = true) {
           }
         } else {
           e.dead = true;
+          e.hitFlashTimer = 12;
           player.takeHit();
         }
       }
@@ -596,7 +597,10 @@ function updateAndDrawAll(doUpdate = true) {
         }
       }
 
-      if (e.dead || e.x < -200) {
+      const readyToRemove =
+        e.x < -200 ||
+        (e.dead && (e.type === "BOSS" || e.hitFlashTimer <= 0));
+      if (readyToRemove) {
         enemies.splice(i, 1);
       }
     }
@@ -1116,60 +1120,62 @@ class Enemy {
   }
 
   update() {
-    if (this.type === "INFANTRY") {
-      this.x -= this.speed;
-      this.y += sin(tick * 0.04 + this.x * 0.02);
-    } else if (this.type === "CAVALRY") {
-      this.x -= this.speed;
-      this.y += this.zigzagAmp * sin(tick * this.zigzagFreq + this.phase) * 0.6;
-    } else if (this.type === "CANNON") {
-      this.x -= this.speed;
-      this.y += sin(tick * 0.03 + this.x * 0.015);
-      this.fireTimer--;
-      if (this.fireTimer <= 0) {
-        enemyProjectiles.push(new CannonShot(this.x - this.w / 2, this.y));
-        playSound(sCannon);
-        this.fireTimer = scaledFireTimer(110, 170);
-      }
-    } else if (this.type === "SNIPER") {
-      if (this.x > width - 80) {
-        this.x -= 3;
-      }
-      this.fireTimer--;
-      if (this.fireTimer <= 0 && this.x <= width - 80) {
-        enemyProjectiles.push(new SniperShot(this.x - this.w / 2, this.y, player));
-        playSound(sSniperShot);
-        this.fireTimer = scaledFireTimer(75, 120);
-      }
-    } else if (this.type === "SNIPER2") {
-      if (this.x < this.targetX) {
-        this.x += this.speed;
-      }
-      if (!this.retreating) {
+    if (!this.dead) {
+      if (this.type === "INFANTRY") {
+        this.x -= this.speed;
+        this.y += sin(tick * 0.04 + this.x * 0.02);
+      } else if (this.type === "CAVALRY") {
+        this.x -= this.speed;
+        this.y += this.zigzagAmp * sin(tick * this.zigzagFreq + this.phase) * 0.6;
+      } else if (this.type === "CANNON") {
+        this.x -= this.speed;
+        this.y += sin(tick * 0.03 + this.x * 0.015);
         this.fireTimer--;
-        this.lifeTimer--;
         if (this.fireTimer <= 0) {
-          enemyProjectiles.push(new SniperShot(this.x + this.w / 2, this.y, player));
+          enemyProjectiles.push(new CannonShot(this.x - this.w / 2, this.y));
+          playSound(sCannon);
+          this.fireTimer = scaledFireTimer(110, 170);
+        }
+      } else if (this.type === "SNIPER") {
+        if (this.x > width - 80) {
+          this.x -= 3;
+        }
+        this.fireTimer--;
+        if (this.fireTimer <= 0 && this.x <= width - 80) {
+          enemyProjectiles.push(new SniperShot(this.x - this.w / 2, this.y, player));
           playSound(sSniperShot);
-          this.fireTimer = scaledFireTimer(60, 90);
+          this.fireTimer = scaledFireTimer(75, 120);
         }
-        if (this.lifeTimer <= 0) {
-          this.retreating = true;
+      } else if (this.type === "SNIPER2") {
+        if (this.x < this.targetX) {
+          this.x += this.speed;
         }
-      } else {
-        this.x -= this.speed * 1.6;
-        if (this.x < -120) {
-          this.dead = true;
+        if (!this.retreating) {
+          this.fireTimer--;
+          this.lifeTimer--;
+          if (this.fireTimer <= 0) {
+            enemyProjectiles.push(new SniperShot(this.x + this.w / 2, this.y, player));
+            playSound(sSniperShot);
+            this.fireTimer = scaledFireTimer(60, 90);
+          }
+          if (this.lifeTimer <= 0) {
+            this.retreating = true;
+          }
+        } else {
+          this.x -= this.speed * 1.6;
+          if (this.x < -120) {
+            this.dead = true;
+          }
         }
+      } else if (this.type === "BOSS") {
+        this.x = Math.max(this.x, width * 0.65);
+        this.y += this.dirY * this.speed;
+        if (this.y < 120 || this.y > height - 120) {
+          this.dirY *= -1;
+        }
+        this.updateBossAttacks();
+        this.maybeDropBossPowerup();
       }
-    } else if (this.type === "BOSS") {
-      this.x = Math.max(this.x, width * 0.65);
-      this.y += this.dirY * this.speed;
-      if (this.y < 120 || this.y > height - 120) {
-        this.dirY *= -1;
-      }
-      this.updateBossAttacks();
-      this.maybeDropBossPowerup();
     }
 
     if (this.hitFlashTimer > 0) {
@@ -1275,7 +1281,7 @@ class Enemy {
   draw() {
     push();
 
-    if (this.hitFlashTimer > 0) {
+    if (this.hitFlashTimer > 0 && this.type !== "BOSS") {
       const t = this.hitFlashTimer / 12;
       const radius = Math.max(this.w, this.h) * (1.1 + (1 - t) * 0.5);
       const points = 10;
